@@ -10,7 +10,23 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 jwt:
-  secret-key: wRX3rsm0Eh/nzsc2CLN1StaZ4/jWXnuCy450YxZQep0=
-  expiration: 86400000  # 1 day in milliseconds
+  secret-key: ${JWT_SECRET_KEY}
+  expiration: 86400000
+
+redis:
+  host: localhost
+  port: 6379
+  password: ${REDIS_PASSWORD}

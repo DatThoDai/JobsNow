@@ -1,3 +1,8 @@
+.env
+application-local.yml
+*.log
+target/
+.DS_Store
 HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar

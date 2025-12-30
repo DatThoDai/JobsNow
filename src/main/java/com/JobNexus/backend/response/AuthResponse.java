@@ -7,8 +7,15 @@ import lombok.Setter;
 @Setter
 public class AuthResponse {
     private String token;
+    private Integer userId;
     private String email;
     private String fullName;
+    private String phone;
     private String role;
-    private String message;
+    private String avatar;
+
+    private Integer profileId;
+
+    private Integer companyId;
+    private String companyName;
 }
