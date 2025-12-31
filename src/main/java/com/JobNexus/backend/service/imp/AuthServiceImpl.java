@@ -14,12 +14,11 @@ import com.JobNexus.backend.request.RegisterRequest;
 import com.JobNexus.backend.request.VerifyOtpRequest;
 import com.JobNexus.backend.response.AuthResponse;
 import com.JobNexus.backend.service.AuthService;
+import com.JobNexus.backend.service.AwsS3Service;
 import com.JobNexus.backend.service.EmailService;
 import com.JobNexus.backend.service.PendingRegistrationService;
 import com.JobNexus.backend.utils.JWTHelper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +37,7 @@ public class AuthServiceImpl implements AuthService {
     private final PendingRegistrationService pendingRegistrationService;
     private final JobSeekerProfileRepository jobSeekerProfileRepository;
     private final CompanyRepository companyRepository;
+    private final AwsS3Service awsS3Service;
     private final String DEFAULT_AVATAR_URL = "https://imgur.com/6VBx3io";
     @Override
     @Transactional
@@ -97,8 +97,24 @@ public class AuthServiceImpl implements AuthService {
         if(companyRepository.existsByCompanyName(request.getCompanyName())){
             throw new BadRequestException("Tên công ty đã được sử dụng");
         }
+        String logoUrl = DEFAULT_AVATAR_URL;
+        if(request.getLogo() != null && !request.getLogo().isEmpty()){
+            try {
+                String originalFileName = request.getLogo().getOriginalFilename();
+                String extension = originalFileName.substring(originalFileName.lastIndexOf("."));
+                String baseName = originalFileName.substring(0, originalFileName.lastIndexOf("."));
+                String s3Key = "logos/" + baseName + "_" + System.currentTimeMillis() + extension;
+                logoUrl = awsS3Service.uploadFileToS3(
+                        request.getLogo().getInputStream(),
+                        s3Key,
+                        request.getLogo().getContentType()
+                );
+            } catch (Exception e) {
+                throw new BadRequestException("Tải lên logo thất bại: " + e.getMessage());
+            }
+        }
         String otp = String.format("%06d", new Random().nextInt(999999));
-        pendingRegistrationService.savePendingRegistration(request.getEmail(), request, otp);
+        pendingRegistrationService.savePendingRegistration(request.getEmail(), request, otp, logoUrl);
         try {
             emailService.sendOtpEmail(request.getEmail(), otp);
             return "Đăng ký thành công! Vui lòng kiểm tra email để xác thực OTP.";
@@ -125,6 +141,19 @@ public class AuthServiceImpl implements AuthService {
         response.setRole(user.getRole().getRoleName());
         response.setUserId(user.getId());
         response.setPhone(user.getPhone());
+        String roleName = user.getRole().getRoleName();
+        if(roleName.equals("ROLE_JOBSEEKER")) {
+            JobSeekerProfile profile = jobSeekerProfileRepository.findByUser_Id(user.getId())
+                    .orElseThrow(() -> new BadRequestException("Không tìm thấy profile"));
+            response.setProfileId(profile.getProfileId());
+            response.setAvatar(profile.getAvatarUrl());
+        } else if (roleName.equals("ROLE_COMPANY")) {
+            Company company = companyRepository.findByUser_Id(user.getId())
+                    .orElseThrow(() -> new BadRequestException("Không tìm thấy thông tin công ty"));
+            response.setCompanyId(company.getCompanyId());
+            response.setCompanyName(company.getCompanyName());
+            response.setAvatar(company.getLogoUrl());
+        }
         return response;
     }
 
@@ -163,7 +192,7 @@ public class AuthServiceImpl implements AuthService {
         Company company = new Company();
         company.setUser(user);
         company.setCompanyName(registerRequest.getCompanyName());
-        company.setLogoUrl(DEFAULT_AVATAR_URL);
+        company.setLogoUrl(pendingRegistrationService.getLogoUrl(request.getEmail()));
         company.setWebsite(registerRequest.getWebsite());
         company.setDescription(registerRequest.getDescription());
         company.setIsVerified(true);

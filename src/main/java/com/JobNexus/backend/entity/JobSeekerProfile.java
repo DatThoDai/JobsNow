@@ -26,7 +26,6 @@ public class JobSeekerProfile {
 
     private String avatarUrl;
 
-    @Column(columnDefinition = "LONGTEXT")
     private String bio;
 
     private String address;

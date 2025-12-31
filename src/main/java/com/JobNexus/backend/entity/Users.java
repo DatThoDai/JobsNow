@@ -33,11 +33,6 @@ public class Users {
     @JoinColumn(name = "role_id", nullable = false)
     private Roles role;
 
-//    private String otp;
-//
-//    @Column(name = "otp_expiry")
-//    private LocalDateTime otpExpiry;
-
     @Column(name = "is_verified")
     private Boolean verified;
 

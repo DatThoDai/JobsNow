@@ -24,7 +24,6 @@ public class Company {
 
     private String website;
 
-    @Column(columnDefinition = "LONGTEXT")
     private String description;
 
     private Boolean isVerified = false;

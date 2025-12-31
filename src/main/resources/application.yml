@@ -3,11 +3,12 @@ server:
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3307/jobnexus_db
+    url: jdbc:postgresql://localhost:5432/jobnexus_db
     username: root
     password: admin123
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: none
   mail:
@@ -30,3 +31,11 @@ redis:
   host: localhost
   port: 6379
   password: ${REDIS_PASSWORD}
+
+aws:
+  s3:
+    bucketName: ${AWS_S3_BUCKET_NAME}
+    accessKey: ${AWS_ACCESS_KEY}
+    secretKey: ${AWS_SECRET_KEY}
+    region: ${AWS_REGION}
+    endpointUrl: ${AWS_S3_ENDPOINT_URL}

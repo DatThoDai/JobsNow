@@ -1,11 +1,13 @@
 package com.JobNexus.backend.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 
@@ -36,5 +38,8 @@ public class RegisterRequest {
     private String website;
     private String description;
     private String companyAddress;
+
+    @JsonIgnore
+    private MultipartFile logo;
 }
 

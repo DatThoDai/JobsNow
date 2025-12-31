@@ -17,13 +17,15 @@ public class PendingRegistrationService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final String PREFIX_REGISTRATION = "pending:registration:";
     private static final String PREFIX_OTP = "pending:otp:";
+    private static final String PREFIX_LOGO = "pending:logo:";
     private static final long TTL_MINUTES = 5;
 
-    public void savePendingRegistration(String email, RegisterRequest registrationRequest, String otp){
+    public void savePendingRegistration(String email, RegisterRequest registrationRequest, String otp, String logoUrl){
         try {
             String requestJson = objectMapper.writeValueAsString(registrationRequest);
             redisTemplate.opsForValue().set(PREFIX_REGISTRATION + email, requestJson, Duration.ofMinutes(TTL_MINUTES));
             redisTemplate.opsForValue().set(PREFIX_OTP + email, otp, Duration.ofMinutes(TTL_MINUTES));
+            redisTemplate.opsForValue().set(PREFIX_LOGO + email, logoUrl, Duration.ofMinutes(TTL_MINUTES));
             log.info("Lưu thông tin đăng ký tạm thời cho email: " + email);
         }catch (Exception e){
             log.error("Lỗi khi lưu thông tin đăng ký" + e.getMessage());
@@ -50,6 +52,7 @@ public class PendingRegistrationService {
         if(hasPendingRegistration(email)){
             redisTemplate.opsForValue().set(PREFIX_OTP + email, otp, Duration.ofMinutes(TTL_MINUTES));
             redisTemplate.expire(PREFIX_REGISTRATION + email, Duration.ofMinutes(TTL_MINUTES));
+            redisTemplate.expire(PREFIX_LOGO + email, Duration.ofMinutes(TTL_MINUTES));
             log.info("Cập nhật OTP mới cho email: " + email);
         }
     }
@@ -58,9 +61,14 @@ public class PendingRegistrationService {
         return Boolean.TRUE.equals(redisTemplate.hasKey(PREFIX_REGISTRATION + email));
     }
 
+    public String getLogoUrl(String email){
+        return redisTemplate.opsForValue().get(PREFIX_LOGO + email);
+    }
+
     public void removePendingRegistration(String email){
         redisTemplate.delete(PREFIX_REGISTRATION + email);
         redisTemplate.delete(PREFIX_OTP + email);
+        redisTemplate.delete(PREFIX_LOGO + email);
         log.info("Xóa thông tin đăng ký tạm thời cho email: " + email);
     }
 
