@@ -3,14 +3,14 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/jobnexus_db
+    url: jdbc:postgresql://localhost:5432/jobsnow_db
     username: root
     password: admin123
     driver-class-name: org.postgresql.Driver
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: none
+      ddl-auto: update
   mail:
     host: smtp.gmail.com
     port: 587
