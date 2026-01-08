@@ -42,15 +42,16 @@ public class SecurityConfig {
         return http.csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(request -> {
+                    request.requestMatchers("/auth/**").permitAll();
                     // COMPANY role
-                request.requestMatchers("/job/create").hasRole("COMPANY");
-                request.requestMatchers(HttpMethod.PUT, "/job/{jobId}").hasRole("COMPANY");
-                request.requestMatchers(HttpMethod.DELETE, "/job/{jobId}").hasRole("COMPANY");
-                // ADMIN
-                request.requestMatchers("/job/approve/**").hasRole("ADMIN");
-                request.requestMatchers(HttpMethod.PUT, "/job/reject").hasRole("ADMIN");
-                // Public
-                request.requestMatchers("/job/**").permitAll();
+                    request.requestMatchers("/job/create").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.PUT, "/job/{jobId}").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.DELETE, "/job/{jobId}").hasRole("COMPANY");
+                    // ADMIN
+                    request.requestMatchers("/job/approve/**").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.PUT, "/job/reject").hasRole("ADMIN");
+                    // Public
+                    request.requestMatchers("/job/**").permitAll();
                     request.anyRequest().authenticated();
                 })
                 .sessionManagement(session -> session
