@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Entity
 @Getter
@@ -29,4 +30,7 @@ public class JobSeekerProfile {
     private String address;
 
     private LocalDate dob;
+
+    @OneToMany(mappedBy = "jobSeekerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Resume> resumes;
 }

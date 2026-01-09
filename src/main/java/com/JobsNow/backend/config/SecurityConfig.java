@@ -43,13 +43,15 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(request -> {
                     request.requestMatchers("/auth/**").permitAll();
-                    // COMPANY role
+                    // COMPANY
                     request.requestMatchers("/job/create").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/job/{jobId}").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.DELETE, "/job/{jobId}").hasRole("COMPANY");
                     // ADMIN
                     request.requestMatchers("/job/approve/**").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.PUT, "/job/reject").hasRole("ADMIN");
+                    // JOBSEEKER
+                    request.requestMatchers("/resume/**").hasRole("JOBSEEKER");
                     // Public
                     request.requestMatchers("/job/**").permitAll();
                     request.anyRequest().authenticated();
