@@ -32,5 +32,11 @@ public class JobSeekerProfile {
     private LocalDate dob;
 
     @OneToMany(mappedBy = "jobSeekerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<JobSeekerSkill> jobSeekerSkills;
+
+    @OneToMany(mappedBy = "jobSeekerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Resume> resumes;
+
+    @OneToMany(mappedBy = "jobSeekerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Application> applications;
 }
