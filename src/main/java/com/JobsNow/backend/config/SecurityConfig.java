@@ -53,6 +53,7 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/company/**").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/category/**").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/profile/{profileId}").permitAll();
+                    request.requestMatchers(HttpMethod.GET,"/company/**").permitAll();
 
                     // ROLE-BASED
                     // ADMIN
@@ -67,7 +68,12 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.DELETE, "/job/{jobId}").hasRole("COMPANY");
                     request.requestMatchers("/application/job/**").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/application/{applicationId}/status").hasRole("COMPANY");
-
+                    request.requestMatchers(HttpMethod.POST, "/company/{companyId}/logo").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.PUT, "/company/{companyId}").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.POST, "/company/{companyId}/banner").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/company/{companyId}/images").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.POST, "/company/{companyId}/images").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.DELETE, "/company/images/**").hasRole("COMPANY");
                     // JOBSEEKER
                     request.requestMatchers("/resume/**").hasRole("JOBSEEKER");
                     request.requestMatchers("/application/apply").hasRole("JOBSEEKER");

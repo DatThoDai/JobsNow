@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Entity
 @Table(name = "company")
 @Getter
@@ -22,6 +24,10 @@ public class Company {
 
     private String logoUrl;
 
+    private String bannerUrl;
+
+    private String slogan;
+
     private String website;
 
     private String description;
@@ -32,5 +38,16 @@ public class Company {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    private Integer createJobCount ;
+    private Integer jobPostCount;
+
+    @ManyToMany
+    @JoinTable(
+            name = "company_industry",
+            joinColumns = @JoinColumn(name = "company_id"),
+            inverseJoinColumns = @JoinColumn(name = "industry_id")
+    )
+    private List<Industry> industries;
+
+    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CompanyImage> images;
 }

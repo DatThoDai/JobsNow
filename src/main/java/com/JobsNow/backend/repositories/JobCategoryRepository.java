@@ -8,6 +8,6 @@ import java.util.List;
 
 @Repository
 public interface JobCategoryRepository extends JpaRepository<JobCategory, Integer> {
-    List<JobCategory> findByIndustryId(Integer industryId);
+    List<JobCategory> findByIndustry_IndustryId(Integer industryId);
     boolean existsByName(String name);
 }

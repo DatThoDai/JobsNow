@@ -14,7 +14,7 @@ import lombok.Setter;
 public class Industry {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    private Integer industryId;
 
     @Column(nullable = false)
     private String name;

@@ -10,7 +10,7 @@ public class JobCategoryMapper {
         return JobCategoryDTO.builder()
                 .categoryId(jobCategory.getId())
                 .categoryName(jobCategory.getName())
-                .industryId(jobCategory.getIndustry().getId())
+                .industryId(jobCategory.getIndustry().getIndustryId())
                 .industryName(jobCategory.getIndustry().getName())
                 .build();
     }

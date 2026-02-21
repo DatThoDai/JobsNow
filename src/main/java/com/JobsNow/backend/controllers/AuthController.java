@@ -6,6 +6,7 @@ import com.JobsNow.backend.request.ResendOtpRequest;
 import com.JobsNow.backend.request.VerifyOtpRequest;
 import com.JobsNow.backend.response.AuthResponse;
 import com.JobsNow.backend.response.BaseResponse;
+import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,39 +21,29 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @ModelAttribute RegisterRequest registerRequest) {
-        BaseResponse response = new BaseResponse();
-        response.setCode(200);
-        response.setMessage(authService.register(registerRequest));
-        response.setData(null);
-        return ResponseEntity.ok(response);
+        return ResponseFactory.successMessage(authService.register(registerRequest));
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
-        AuthResponse authResponse = authService.login(loginRequest);
-        BaseResponse response = new BaseResponse();
-        response.setCode(200);
-        response.setMessage("Login successful");
-        response.setData(authResponse);
-        return ResponseEntity.ok(response);
+        return ResponseFactory.success(authService.login(loginRequest));
     }
 
     @PostMapping("/verify-otp")
     public ResponseEntity<?> verifyOtp(@Valid @RequestBody VerifyOtpRequest verifyOtpRequest) {
         authService.verifyOtp(verifyOtpRequest);
-        BaseResponse response = new BaseResponse();
-        response.setCode(200);
-        response.setMessage("OTP verified successfully");
-        return ResponseEntity.ok(response);
+        return ResponseFactory.successMessage("OTP verified successfully");
     }
 
     @PostMapping("/resend-otp")
     public ResponseEntity<?> resendOtp(@RequestBody ResendOtpRequest request) {
         authService.resendOtp(request.getEmail());
-        BaseResponse response = new BaseResponse();
-        response.setCode(200);
-        response.setMessage("OTP resent successfully");
-        return ResponseEntity.ok(response);
+        return ResponseFactory.successMessage("OTP resent successfully");
+    }
+
+    @PostMapping("/check-email")
+    public ResponseEntity<?> checkEmailExists(@RequestParam String email) {
+        return ResponseFactory.success(authService.checkEmailExists(email));
     }
 
 }

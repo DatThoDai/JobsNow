@@ -2,6 +2,8 @@ package com.JobsNow.backend.dto;
 
 import lombok.*;
 
+import java.util.List;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -11,6 +13,15 @@ public class CompanyDTO {
     private Integer companyId;
     private String companyName;
     private String logoUrl;
+    private String bannerUrl;
+    private String slogan;
     private String website;
     private String description;
+    private Boolean isVerified;
+    private Integer jobPostCount;
+
+    private String email;
+    private String phone;
+
+    private List<CompanyImageDTO> images;
 }

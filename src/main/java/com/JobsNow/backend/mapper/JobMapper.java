@@ -20,7 +20,7 @@ public class JobMapper {
         dto.setSalaryMin(job.getSalaryMin());
         dto.setSalaryMax(job.getSalaryMax());
         dto.setYearsOfExperience(job.getYearsOfExperience());
-        dto.setEducationLevel(job.getEducationLevel());
+        dto.setEducationLevel(job.getEducationLevel() != null ? job.getEducationLevel().name() : null);
         dto.setJobType(job.getJobType() != null ? job.getJobType().name() : null);
         dto.setLocation(job.getLocation());
         dto.setPostedAt(job.getPostedAt());

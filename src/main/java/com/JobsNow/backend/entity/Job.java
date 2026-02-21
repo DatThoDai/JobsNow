@@ -1,5 +1,6 @@
 package com.JobsNow.backend.entity;
 
+import com.JobsNow.backend.entity.enums.EducationLevel;
 import com.JobsNow.backend.entity.enums.JobType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -42,7 +43,8 @@ public class Job {
 
     private String yearsOfExperience;
 
-    private String educationLevel;
+    @Enumerated(EnumType.STRING)
+    private EducationLevel educationLevel;
 
     private LocalDateTime postedAt;
 

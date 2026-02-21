@@ -5,7 +5,9 @@ import com.JobsNow.backend.entity.Company;
 import com.JobsNow.backend.entity.Job;
 import com.JobsNow.backend.entity.JobCategory;
 import com.JobsNow.backend.entity.Skill;
+import com.JobsNow.backend.entity.enums.EducationLevel;
 import com.JobsNow.backend.entity.enums.JobType;
+import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.JobMapper;
 import com.JobsNow.backend.repositories.CompanyRepository;
@@ -45,7 +47,13 @@ public class JobServiceImp implements JobService {
         job.setSalaryMin(request.getSalaryMin());
         job.setSalaryMax(request.getSalaryMax());
         job.setYearsOfExperience(request.getYearsOfExperience());
-        job.setEducationLevel(request.getEducationLevel());
+        if (request.getEducationLevel() != null) {
+            try {
+                job.setEducationLevel(EducationLevel.valueOf(request.getEducationLevel().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid education level. Allowed: HIGH_SCHOOL, ASSOCIATE, BACHELOR, MASTER, DOCTORATE, OTHER");
+            }
+        }
         job.setLocation(request.getLocation());
         job.setDeadline(request.getDeadline());
         job.setPostedAt(LocalDateTime.now());
@@ -66,8 +74,8 @@ public class JobServiceImp implements JobService {
             List<Skill> skills = new ArrayList<>(skillRepository.findAllById(request.getSkillIds()));
             job.setSkills(skills);
         }
-        int currentCount = company.getCreateJobCount() != null ? company.getCreateJobCount() : 0;
-        company.setCreateJobCount(currentCount + 1);
+        int currentCount = company.getJobPostCount() != null ? company.getJobPostCount(): 0;
+        company.setJobPostCount(currentCount + 1);
         companyRepository.save(company);
 
         Job savedJob = jobRepository.save(job);
@@ -112,7 +120,13 @@ public class JobServiceImp implements JobService {
         job.setSalaryMin(request.getSalaryMin());
         job.setSalaryMax(request.getSalaryMax());
         job.setYearsOfExperience(request.getYearsOfExperience());
-        job.setEducationLevel(request.getEducationLevel());
+        if (request.getEducationLevel() != null) {
+            try {
+                job.setEducationLevel(EducationLevel.valueOf(request.getEducationLevel().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid education level. Allowed: HIGH_SCHOOL, ASSOCIATE, BACHELOR, MASTER, DOCTORATE, OTHER");
+            }
+        }
         job.setLocation(request.getLocation());
         job.setDeadline(request.getDeadline());
         if (request.getJobType() != null) {
