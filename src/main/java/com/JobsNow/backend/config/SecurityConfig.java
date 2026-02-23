@@ -1,9 +1,11 @@
 package com.JobsNow.backend.config;
 
 import com.JobsNow.backend.filter.AuthenticationFilter;
+import com.JobsNow.backend.response.ResponseFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -12,6 +14,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -54,7 +60,7 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/category/**").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/profile/{profileId}").permitAll();
                     request.requestMatchers(HttpMethod.GET,"/company/**").permitAll();
-
+                    request.requestMatchers(HttpMethod.GET, "/major/**").permitAll();
                     // ROLE-BASED
                     // ADMIN
                     request.requestMatchers("/job/approve/**").hasRole("ADMIN");
@@ -62,6 +68,7 @@ public class SecurityConfig {
                     request.requestMatchers("/skill/add", "/skill/update", "/skill/delete/**").hasRole("ADMIN");
                     request.requestMatchers("/category/add", "/category/update", "/category/delete/**").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.GET, "/profile/all").hasAnyRole("ADMIN", "COMPANY");
+                    request.requestMatchers("/major/**").hasRole("ADMIN");
                     // COMPANY
                     request.requestMatchers("/job/create").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/job/{jobId}").hasRole("COMPANY");

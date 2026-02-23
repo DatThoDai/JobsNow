@@ -1,4 +1,5 @@
 package com.JobsNow.backend.dto;
+import com.JobsNow.backend.entity.Major;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -33,5 +34,6 @@ public class JobDTO {
     private Integer categoryId;
     private String categoryName;
 
-    private List<SkillDTO> skills;
+    private List<JobSkillDTO> jobSkills;
+    private List<Major> majors;
 }

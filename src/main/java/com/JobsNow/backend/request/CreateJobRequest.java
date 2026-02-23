@@ -52,5 +52,14 @@ public class CreateJobRequest {
 
     private Integer categoryId;
 
-    private List<Integer> skillIds;
+    private List<JobSkillItem> jobSkills;
+
+    private List<Integer> majorIds;
+
+    @Data
+    public static class JobSkillItem {
+        private Integer skillId;
+        private Boolean isRequired = false;
+        private String level;
+    }
 }

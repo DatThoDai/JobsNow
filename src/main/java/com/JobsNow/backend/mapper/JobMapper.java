@@ -1,10 +1,12 @@
 package com.JobsNow.backend.mapper;
 
 import com.JobsNow.backend.dto.JobDTO;
+import com.JobsNow.backend.dto.JobSkillDTO;
 import com.JobsNow.backend.entity.Job;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 @Component
@@ -38,11 +40,21 @@ public class JobMapper {
             dto.setCategoryName(job.getCategory().getName());
         }
 
-        if (job.getSkills() != null && !job.getSkills().isEmpty()) {
-            dto.setSkills(job.getSkills().stream()
-                    .map(SkillMapper::toSkillDTO)
+        if (job.getJobSkills() != null && !job.getJobSkills().isEmpty()) {
+            dto.setJobSkills(job.getJobSkills().stream()
+                    .map(js -> JobSkillDTO.builder()
+                            .skillId(js.getSkill().getSkillId())
+                            .skillName(js.getSkill().getSkillName())
+                            .isRequired(js.getIsRequired())
+                            .level(js.getLevel())
+                            .build())
                     .collect(Collectors.toList()));
+        } else {
+            dto.setJobSkills(new ArrayList<>());
         }
+
+        dto.setMajors( job.getMajors() != null ? job.getMajors() : new ArrayList<>());
+
         return dto;
     }
 }
