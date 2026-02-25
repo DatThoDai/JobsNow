@@ -1,5 +1,6 @@
 package com.JobsNow.backend.entity;
 
+import com.JobsNow.backend.entity.enums.EducationLevel;
 import com.JobsNow.backend.entity.enums.JobType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -42,7 +43,8 @@ public class Job {
 
     private String yearsOfExperience;
 
-    private String educationLevel;
+    @Enumerated(EnumType.STRING)
+    private EducationLevel educationLevel;
 
     private LocalDateTime postedAt;
 
@@ -59,13 +61,16 @@ public class Job {
     @JoinColumn(name = "category_id")
     private JobCategory category;
 
+    @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<JobSkill> jobSkills;
+
     @ManyToMany
     @JoinTable(
-            name = "job_skill",
+            name = "job_major",
             joinColumns = @JoinColumn(name = "job_id"),
-            inverseJoinColumns = @JoinColumn(name = "skill_id")
+            inverseJoinColumns = @JoinColumn(name = "major_id")
     )
-    private List<Skill> skills;
+    private List<Major> majors;
 
     private Boolean isActive = true;
 

@@ -10,4 +10,7 @@ public interface AuthService {
     AuthResponse login(LoginRequest loginRequest);
     void verifyOtp(VerifyOtpRequest request);
     void resendOtp(String email);
+    boolean checkEmailExists(String email);
+
+    AuthResponse getCurrentUser(String email);
 }

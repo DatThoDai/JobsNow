@@ -23,7 +23,7 @@ public class JWTHelper {
                 .subject(email)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
-                .signWith(key)
+                .signWith(key, Jwts.SIG.HS256)
                 .compact();
     }
 
@@ -34,7 +34,7 @@ public class JWTHelper {
             return data;
         }catch (Exception e){
             System.out.println(e.getMessage());
-            throw new RuntimeException(e);
+            return null;
         }
     }
 }

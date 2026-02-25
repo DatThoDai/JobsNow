@@ -2,6 +2,7 @@ package com.JobsNow.backend.controllers;
 
 import com.JobsNow.backend.request.CreateSkillRequest;
 import com.JobsNow.backend.response.BaseResponse;
+import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.SkillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,37 +15,24 @@ public class SkillController {
     private final SkillService skillService;
     @GetMapping("/all")
     public ResponseEntity<?> getAllSkills() {
-        BaseResponse response = new BaseResponse();
-        response.setCode(200);
-        response.setMessage("Skills retrieved successfully");
-        response.setData(skillService.getAllSkills());
-        return ResponseEntity.ok(response);
+        return ResponseFactory.success(skillService.getAllSkills());
     }
 
     @PostMapping("/add")
     public ResponseEntity<?> addSkill(@RequestBody CreateSkillRequest request){
-        BaseResponse response = new BaseResponse();
         skillService.addSkill(request);
-        response.setCode(200);
-        response.setMessage("Skill added successfully");
-        return ResponseEntity.ok(response);
+        return ResponseFactory.successMessage("Skill added successfully");
     }
 
     @DeleteMapping("/delete/{skillId}")
     public ResponseEntity<?> deleteSkill(@PathVariable Integer skillId) {
-        BaseResponse response = new BaseResponse();
         skillService.deleteSkill(skillId);
-        response.setCode(200);
-        response.setMessage("Skill deleted successfully");
-        return ResponseEntity.ok(response);
+        return ResponseFactory.successMessage("Skill deleted successfully");
     }
 
     @PutMapping("/update")
     public ResponseEntity<?> updateSkill(@RequestParam Integer skillId, @RequestParam String skillName) {
-        BaseResponse response = new BaseResponse();
         skillService.updateSkill(skillId, skillName);
-        response.setCode(200);
-        response.setMessage("Skill updated successfully");
-        return ResponseEntity.ok(response);
+        return ResponseFactory.successMessage("Skill updated successfully");
     }
 }

@@ -32,7 +32,7 @@ public class JobCategoryServiceImpl implements JobCategoryService {
 
     @Override
     public List<JobCategoryDTO> getJobCategoriesByIndustryId(Integer industryId) {
-        List<JobCategory> jobCategories = jobCategoryRepository.findByIndustryId(industryId);
+        List<JobCategory> jobCategories = jobCategoryRepository.findByIndustry_IndustryId(industryId);
         return jobCategories.stream()
                 .map(JobCategoryMapper::toJobCategoryDTO)
                 .collect(Collectors.toList());

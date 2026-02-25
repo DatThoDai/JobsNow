@@ -1,17 +1,13 @@
 package com.JobsNow.backend.service.imp;
 
 import com.JobsNow.backend.dto.JobDTO;
-import com.JobsNow.backend.entity.Company;
-import com.JobsNow.backend.entity.Job;
-import com.JobsNow.backend.entity.JobCategory;
-import com.JobsNow.backend.entity.Skill;
+import com.JobsNow.backend.entity.*;
+import com.JobsNow.backend.entity.enums.EducationLevel;
 import com.JobsNow.backend.entity.enums.JobType;
+import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.JobMapper;
-import com.JobsNow.backend.repositories.CompanyRepository;
-import com.JobsNow.backend.repositories.JobCategoryRepository;
-import com.JobsNow.backend.repositories.JobRepository;
-import com.JobsNow.backend.repositories.SkillRepository;
+import com.JobsNow.backend.repositories.*;
 import com.JobsNow.backend.request.CreateJobRequest;
 import com.JobsNow.backend.request.RejectJobRequest;
 import com.JobsNow.backend.request.UpdateJobRequest;
@@ -19,6 +15,7 @@ import com.JobsNow.backend.service.JobService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.chrono.ChronoLocalDate;
@@ -27,11 +24,14 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class JobServiceImp implements JobService {
+public class JobServiceImpl implements JobService {
     private final JobRepository jobRepository;
     private final CompanyRepository companyRepository;
     private final JobCategoryRepository jobCategoryRepository;
     private final SkillRepository skillRepository;
+    private final JobSkillRepository jobSkillRepository;
+    private final MajorRepository majorRepository;
+    @Transactional
     @Override
     public void createJob(CreateJobRequest request) {
         Company company = companyRepository.findById(request.getCompanyId())
@@ -45,7 +45,13 @@ public class JobServiceImp implements JobService {
         job.setSalaryMin(request.getSalaryMin());
         job.setSalaryMax(request.getSalaryMax());
         job.setYearsOfExperience(request.getYearsOfExperience());
-        job.setEducationLevel(request.getEducationLevel());
+        if (request.getEducationLevel() != null) {
+            try {
+                job.setEducationLevel(EducationLevel.valueOf(request.getEducationLevel().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid education level. Allowed: HIGH_SCHOOL, ASSOCIATE, BACHELOR, MASTER, DOCTORATE, OTHER");
+            }
+        }
         job.setLocation(request.getLocation());
         job.setDeadline(request.getDeadline());
         job.setPostedAt(LocalDateTime.now());
@@ -59,18 +65,45 @@ public class JobServiceImp implements JobService {
         }
         if (request.getCategoryId() != null) {
             JobCategory category = jobCategoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> new NotFoundException("Category not found with ID: " + request.getCategoryId()));
+                    .orElseThrow(() -> new NotFoundException("Category not found"));
             job.setCategory(category);
         }
-        if (request.getSkillIds() != null && !request.getSkillIds().isEmpty()) {
-            List<Skill> skills = new ArrayList<>(skillRepository.findAllById(request.getSkillIds()));
-            job.setSkills(skills);
-        }
-        int currentCount = company.getCreateJobCount() != null ? company.getCreateJobCount() : 0;
-        company.setCreateJobCount(currentCount + 1);
-        companyRepository.save(company);
-
         Job savedJob = jobRepository.save(job);
+
+        if(request.getJobSkills()!=null && !request.getJobSkills().isEmpty()){
+            List<JobSkill> jobSkills = new ArrayList<>();
+            for(CreateJobRequest.JobSkillItem skillItem : request.getJobSkills()){
+                if(skillItem.getSkillId() == null){
+                    throw new BadRequestException("Skill ID cannot be null");
+                }
+                Skill skill = skillRepository.findById(skillItem.getSkillId())
+                        .orElseThrow(() -> new NotFoundException("Skill not found"));
+                JobSkillId jobSkillId = new JobSkillId(savedJob.getJobId(), skill.getSkillId());
+                JobSkill jobSkill = new JobSkill();
+                jobSkill.setId(jobSkillId);
+                jobSkill.setJob(savedJob);
+                jobSkill.setSkill(skill);
+                jobSkill.setIsRequired(skillItem.getIsRequired());
+                jobSkill.setLevel(skillItem.getLevel());
+                jobSkills.add(jobSkill);
+            }
+            jobSkillRepository.saveAll(jobSkills);
+            savedJob.setJobSkills(jobSkills);
+        }
+
+        if (request.getMajorIds() != null && !request.getMajorIds().isEmpty()) {
+            List<Major> majors = new ArrayList<>();
+            for(Integer majorId : request.getMajorIds()){
+                Major major = majorRepository.findById(majorId)
+                        .orElseThrow(() -> new NotFoundException("Major not found"));
+                majors.add(major);
+            }
+            savedJob.setMajors(majors);
+            jobRepository.save(savedJob);
+        }
+        int currentCount = company.getJobPostCount() != null ? company.getJobPostCount(): 0;
+        company.setJobPostCount(currentCount + 1);
+        companyRepository.save(company);
     }
 
     @Override
@@ -102,19 +135,45 @@ public class JobServiceImp implements JobService {
     }
 
     @Override
+    @Transactional
     public void updateJob(UpdateJobRequest request) {
         Job job = jobRepository.findById(request.getJobId())
                 .orElseThrow(() -> new NotFoundException("Job not found"));
-        job.setTitle(request.getTitle());
-        job.setDescription(request.getDescription());
-        job.setRequirements(request.getRequirements());
-        job.setBenefits(request.getBenefits());
-        job.setSalaryMin(request.getSalaryMin());
-        job.setSalaryMax(request.getSalaryMax());
-        job.setYearsOfExperience(request.getYearsOfExperience());
-        job.setEducationLevel(request.getEducationLevel());
-        job.setLocation(request.getLocation());
-        job.setDeadline(request.getDeadline());
+
+        if (request.getTitle() != null) {
+            job.setTitle(request.getTitle());
+        }
+        if (request.getDescription() != null) {
+            job.setDescription(request.getDescription());
+        }
+        if (request.getRequirements() != null) {
+            job.setRequirements(request.getRequirements());
+        }
+        if (request.getBenefits() != null) {
+            job.setBenefits(request.getBenefits());
+        }
+        if (request.getSalaryMin() != null) {
+            job.setSalaryMin(request.getSalaryMin());
+        }
+        if (request.getSalaryMax() != null) {
+            job.setSalaryMax(request.getSalaryMax());
+        }
+        if (request.getYearsOfExperience() != null) {
+            job.setYearsOfExperience(request.getYearsOfExperience());
+        }
+        if (request.getLocation() != null) {
+            job.setLocation(request.getLocation());
+        }
+        if (request.getDeadline() != null) {
+            job.setDeadline(request.getDeadline());
+        }
+        if (request.getEducationLevel() != null) {
+            try {
+                job.setEducationLevel(EducationLevel.valueOf(request.getEducationLevel().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid education level. Allowed: HIGH_SCHOOL, ASSOCIATE, BACHELOR, MASTER, DOCTORATE, OTHER");
+            }
+        }
         if (request.getJobType() != null) {
             job.setJobType(JobType.valueOf(request.getJobType().toUpperCase()));
         }
@@ -123,11 +182,47 @@ public class JobServiceImp implements JobService {
                     .orElseThrow(() -> new NotFoundException("Category not found"));
             job.setCategory(category);
         }
-        if(request.getSkillIds() != null){
-            List<Skill> skills = new ArrayList<>(skillRepository.findAllById(request.getSkillIds()));
-            job.setSkills(skills);
+        if (request.getJobSkills() != null) {
+            jobSkillRepository.deleteByJobId(job.getJobId());
+            if (!request.getJobSkills().isEmpty()) {
+                List<JobSkill> newJobSkills = new ArrayList<>();
+                for (UpdateJobRequest.JobSkillItem item : request.getJobSkills()) {
+                    if (item.getSkillId() == null) {
+                        throw new BadRequestException("Skill ID cannot be null");
+                    }
+                    Skill skill = skillRepository.findById(item.getSkillId())
+                            .orElseThrow(() -> new NotFoundException("Skill not found"));
+                    JobSkillId jobSkillId = new JobSkillId(job.getJobId(), skill.getSkillId());
+                    JobSkill jobSkill = new JobSkill();
+                    jobSkill.setId(jobSkillId);
+                    jobSkill.setJob(job);
+                    jobSkill.setSkill(skill);
+                    jobSkill.setIsRequired(
+                            item.getIsRequired() != null ? item.getIsRequired() : false
+                    );
+                    jobSkill.setLevel(item.getLevel());
+                    newJobSkills.add(jobSkill);
+                }
+                jobSkillRepository.saveAll(newJobSkills);
+                job.setJobSkills(newJobSkills);
+            } else {
+                job.setJobSkills(new ArrayList<>());
+            }
         }
-        if(request.getIsActive() != null){
+        if (request.getMajorIds() != null) {
+            if (!request.getMajorIds().isEmpty()) {
+                List<Major> majors = new ArrayList<>();
+                for (Integer majorId : request.getMajorIds()) {
+                    Major major = majorRepository.findById(majorId)
+                            .orElseThrow(() -> new NotFoundException("Major not found: " + majorId));
+                    majors.add(major);
+                }
+                job.setMajors(majors);
+            } else {
+                job.setMajors(new ArrayList<>());
+            }
+        }
+        if (request.getIsActive() != null) {
             job.setIsActive(request.getIsActive());
         }
         job.setIsPending(true);

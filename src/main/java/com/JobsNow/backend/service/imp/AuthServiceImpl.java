@@ -38,7 +38,7 @@ public class AuthServiceImpl implements AuthService {
     private final JobSeekerProfileRepository jobSeekerProfileRepository;
     private final CompanyRepository companyRepository;
     private final AwsS3Service awsS3Service;
-    private final String DEFAULT_AVATAR_URL = "https://jobsnow-uploads.s3.us-east-1.amazonaws.com/avatars/default-avatar_1768482222526.png";
+    private final String DEFAULT_AVATAR_URL = "https://jobsnow-upload.s3.us-east-1.amazonaws.com/avatars/default-avatar_1771699390597.png";
     @Override
     @Transactional
     public String register(RegisterRequest registerRequest) {
@@ -196,6 +196,7 @@ public class AuthServiceImpl implements AuthService {
         company.setWebsite(registerRequest.getWebsite());
         company.setDescription(registerRequest.getDescription());
         company.setIsVerified(true);
+        company.setJobPostCount(5);
         companyRepository.save(company);
         pendingRegistrationService.removePendingRegistration(request.getEmail());
     }
@@ -212,5 +213,36 @@ public class AuthServiceImpl implements AuthService {
         } catch (Exception e) {
             throw new BadRequestException("Failed to send OTP: " + e.getMessage());
         }
+    }
+
+    @Override
+    public boolean checkEmailExists(String email) {
+        return userRepository.existsByEmail(email);
+    }
+
+    @Override
+    public AuthResponse getCurrentUser(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BadRequestException("User not found"));
+        AuthResponse response = new AuthResponse();
+        response.setEmail(user.getEmail());
+        response.setFullName(user.getFullName());
+        response.setRole(user.getRole().getRoleName());
+        response.setUserId(user.getUserId());
+        response.setPhone(user.getPhone());
+        String roleName = user.getRole().getRoleName();
+        if (roleName.equals("ROLE_JOBSEEKER")) {
+            JobSeekerProfile profile = jobSeekerProfileRepository.findByUser_UserId(user.getUserId())
+                    .orElseThrow(() -> new BadRequestException("Profile not found"));
+            response.setProfileId(profile.getProfileId());
+            response.setAvatar(profile.getAvatarUrl());
+        } else if (roleName.equals("ROLE_COMPANY")) {
+            Company company = companyRepository.findByUser_UserId(user.getUserId())
+                    .orElseThrow(() -> new BadRequestException("Company not found"));
+            response.setCompanyId(company.getCompanyId());
+            response.setCompanyName(company.getCompanyName());
+            response.setAvatar(company.getLogoUrl());
+        }
+        return response;
     }
 }
