@@ -2,6 +2,7 @@ package com.JobsNow.backend.config;
 
 import com.JobsNow.backend.filter.AuthenticationFilter;
 import com.JobsNow.backend.response.ResponseFactory;
+import com.JobsNow.backend.service.SavedJobService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -91,7 +92,9 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/application/{applicationId}").authenticated();
                     request.requestMatchers("/profile/{profileId}/avatar").hasRole("JOBSEEKER");
                     request.requestMatchers("/profile/skills").hasRole("JOBSEEKER");
+                    request.requestMatchers("/savedJob/**").hasRole("JOBSEEKER");
                     request.anyRequest().authenticated();
+
                 })
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
