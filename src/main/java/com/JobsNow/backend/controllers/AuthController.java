@@ -11,6 +11,7 @@ import com.JobsNow.backend.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -46,4 +47,9 @@ public class AuthController {
         return ResponseFactory.success(authService.checkEmailExists(email));
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(Authentication authentication) {
+        String email = authentication.getName();
+        return ResponseFactory.success(authService.getCurrentUser(email));
+    }
 }

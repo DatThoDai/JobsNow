@@ -8,6 +8,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.io.UnsupportedEncodingException;
+
 @Service
 @RequiredArgsConstructor
 public class EmailService {
@@ -15,11 +17,11 @@ public class EmailService {
     @Value("${spring.mail.username}")
     private String fromEmail;
 
-    public void sendOtpEmail(String to, String otp) throws MessagingException {
+    public void sendOtpEmail(String to, String otp) throws MessagingException, UnsupportedEncodingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true);
 
-        helper.setFrom(fromEmail);
+        helper.setFrom(fromEmail, "JobsNow");
         helper.setTo(to);
         helper.setSubject("JobsNow - Xác thực email - Mã OTP");
         helper.setText(
