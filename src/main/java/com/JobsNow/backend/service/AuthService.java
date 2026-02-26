@@ -13,4 +13,8 @@ public interface AuthService {
     boolean checkEmailExists(String email);
 
     AuthResponse getCurrentUser(String email);
+
+    void sendLoginOtp(String email);
+
+    AuthResponse verifyLoginOtp(String email, String otp, String clientIp);
 }

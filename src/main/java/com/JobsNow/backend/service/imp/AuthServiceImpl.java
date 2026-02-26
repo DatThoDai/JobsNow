@@ -13,9 +13,11 @@ import com.JobsNow.backend.request.LoginRequest;
 import com.JobsNow.backend.request.RegisterRequest;
 import com.JobsNow.backend.request.VerifyOtpRequest;
 import com.JobsNow.backend.response.AuthResponse;
+import com.JobsNow.backend.dto.OtpLoginData;
 import com.JobsNow.backend.service.AuthService;
 import com.JobsNow.backend.service.AwsS3Service;
 import com.JobsNow.backend.service.EmailService;
+import com.JobsNow.backend.service.LoginOtpRedisService;
 import com.JobsNow.backend.service.PendingRegistrationService;
 import com.JobsNow.backend.utils.JWTHelper;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,7 @@ public class AuthServiceImpl implements AuthService {
     private final JWTHelper jwtHelper;
     private final EmailService emailService;
     private final PendingRegistrationService pendingRegistrationService;
+    private final LoginOtpRedisService loginOtpRedisService;
     private final JobSeekerProfileRepository jobSeekerProfileRepository;
     private final CompanyRepository companyRepository;
     private final AwsS3Service awsS3Service;
@@ -218,6 +221,72 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public boolean checkEmailExists(String email) {
         return userRepository.existsByEmail(email);
+    }
+
+    @Override
+    public void sendLoginOtp(String email) {
+        if (!userRepository.existsByEmail(email)) {
+            throw new BadRequestException("Email not found. Please register first.");
+        }
+        if (loginOtpRedisService.hasCooldown(email)) {
+            throw new BadRequestException("Please wait 60 seconds before requesting a new OTP.");
+        }
+        String otp = String.format("%06d", new Random().nextInt(999999));
+        String hashOtp = passwordEncoder.encode(otp);
+        loginOtpRedisService.saveOtp(email, hashOtp);
+        loginOtpRedisService.setCooldown(email);
+        try {
+            emailService.sendLoginOtpEmail(email, otp);
+        } catch (Exception e) {
+            loginOtpRedisService.deleteOtp(email);
+            throw new BadRequestException("Failed to send OTP: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public AuthResponse verifyLoginOtp(String email, String otp, String clientIp) {
+        if (loginOtpRedisService.hasIplock(clientIp)) {
+            throw new BadRequestException("IP temporarily locked. Please try again later.");
+        }
+        OtpLoginData data = loginOtpRedisService.getOtpData(email);
+        if (data == null) {
+            throw new BadRequestException("OTP expired. Please request a new one.");
+        }
+        if (!passwordEncoder.matches(otp, data.getHashOtp())) {
+            data.setAttempts(data.getAttempts() + 1);
+            if (data.getAttempts() >= 5) {
+                loginOtpRedisService.setIplock(clientIp);
+                loginOtpRedisService.deleteOtp(email);
+                throw new BadRequestException("Too many attempts. IP locked for 5 minutes.");
+            }
+            loginOtpRedisService.updateOtpData(email, data);
+            throw new BadRequestException("Invalid OTP.");
+        }
+        loginOtpRedisService.deleteOtp(email);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BadRequestException("User not found"));
+        String token = jwtHelper.generateToken(user.getEmail());
+        AuthResponse response = new AuthResponse();
+        response.setToken(token);
+        response.setEmail(user.getEmail());
+        response.setFullName(user.getFullName());
+        response.setRole(user.getRole().getRoleName());
+        response.setUserId(user.getUserId());
+        response.setPhone(user.getPhone());
+        String roleName = user.getRole().getRoleName();
+        if (roleName.equals("ROLE_JOBSEEKER")) {
+            JobSeekerProfile profile = jobSeekerProfileRepository.findByUser_UserId(user.getUserId())
+                    .orElseThrow(() -> new BadRequestException("Profile not found"));
+            response.setProfileId(profile.getProfileId());
+            response.setAvatar(profile.getAvatarUrl());
+        } else if (roleName.equals("ROLE_COMPANY")) {
+            Company company = companyRepository.findByUser_UserId(user.getUserId())
+                    .orElseThrow(() -> new BadRequestException("Company not found"));
+            response.setCompanyId(company.getCompanyId());
+            response.setCompanyName(company.getCompanyName());
+            response.setAvatar(company.getLogoUrl());
+        }
+        return response;
     }
 
     @Override
