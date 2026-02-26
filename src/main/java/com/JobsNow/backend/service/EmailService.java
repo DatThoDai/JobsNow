@@ -37,4 +37,25 @@ public class EmailService {
 
         mailSender.send(message);
     }
+
+    public void sendLoginOtpEmail(String to, String otp) throws MessagingException, UnsupportedEncodingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true);
+
+        helper.setFrom(fromEmail, "JobsNow");
+        helper.setTo(to);
+        helper.setSubject("JobsNow - Mã đăng nhập");
+        helper.setText(
+                "<div style='font-family: Arial, sans-serif;'>" +
+                        "<h2 style='color: #4CAF50;'>Mã đăng nhập của bạn</h2>" +
+                        "<p>Mã OTP để đăng nhập:</p>" +
+                        "<h1 style='color: #2196F3; letter-spacing: 5px;'>" + otp + "</h1>" +
+                        "<p style='color: #666;'>Mã này có hiệu lực trong <strong>5 phút</strong>.</p>" +
+                        "<p style='color: #f44336;'>Vui lòng không chia sẻ mã này với bất kỳ ai.</p>" +
+                        "</div>",
+                true
+        );
+
+        mailSender.send(message);
+    }
 }
