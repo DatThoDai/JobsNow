@@ -1,5 +1,6 @@
 package com.JobsNow.backend.controllers;
 
+import com.JobsNow.backend.request.GoogleLoginRequest;
 import com.JobsNow.backend.request.LoginRequest;
 import com.JobsNow.backend.request.RegisterRequest;
 import com.JobsNow.backend.request.ResendOtpRequest;
@@ -31,6 +32,11 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
         return ResponseFactory.success(authService.login(loginRequest));
+    }
+
+    @PostMapping("/google-login")
+    public ResponseEntity<?> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
+        return ResponseFactory.success(authService.loginWithGoogle(request.getIdToken()));
     }
 
     @PostMapping("/verify-otp")
