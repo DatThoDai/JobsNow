@@ -57,6 +57,11 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/job/company/{companyId}").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/skill/all").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/category/**", "/industry/**", "/skill/**").permitAll();
+                    request.requestMatchers(HttpMethod.GET, "/company/me").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.POST, "/company/me").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.PUT, "/company/update/**").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/company/all", "/company/search").permitAll();
+                    request.requestMatchers(HttpMethod.GET, "/company/{companyId}").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/company/**").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/category/**").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/profile/{profileId}").permitAll();
@@ -74,11 +79,13 @@ public class SecurityConfig {
                     request.requestMatchers("/job/create").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/job/{jobId}").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.DELETE, "/job/{jobId}").hasRole("COMPANY");
-                    request.requestMatchers("/application/job/**").hasRole("COMPANY");
+                    request.requestMatchers("/application/job/**", "/application/company/**").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/application/{applicationId}/status").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.POST, "/company/{companyId}/logo").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.DELETE, "/company/{companyId}/logo").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/company/{companyId}").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.POST, "/company/{companyId}/banner").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.DELETE, "/company/{companyId}/banner").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.GET, "/company/{companyId}/images").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.POST, "/company/{companyId}/images").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.DELETE, "/company/images/**").hasRole("COMPANY");

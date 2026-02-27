@@ -12,5 +12,6 @@ public interface ApplicationService {
     ApplicationDetailResponse getApplicationDetail(Integer applicationId);
 
     List<ApplicationOfJobResponse> getApplicationsByJob(Integer jobId);
+    List<ApplicationDetailResponse> getApplicationsByCompany(Integer companyId);
     void updateApplicationStatus(Integer applicationId, String status);
 }

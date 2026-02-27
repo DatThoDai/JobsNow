@@ -16,6 +16,8 @@ import java.util.List;
 @Builder
 public class ApplicationDetailResponse {
     private Integer applicationId;
+    private String status;
+    private java.time.LocalDateTime appliedAt;
     private JobDTO job;
     private JobSeekerProfileDTO jobSeekerProfile;
     private ResumeDTO resumeApplied;
