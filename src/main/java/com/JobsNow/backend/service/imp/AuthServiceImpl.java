@@ -17,6 +17,7 @@ import com.JobsNow.backend.dto.OtpLoginData;
 import com.JobsNow.backend.service.AuthService;
 import com.JobsNow.backend.service.AwsS3Service;
 import com.JobsNow.backend.service.EmailService;
+import com.JobsNow.backend.service.GoogleTokenVerifier;
 import com.JobsNow.backend.service.LoginOtpRedisService;
 import com.JobsNow.backend.service.PendingRegistrationService;
 import com.JobsNow.backend.utils.JWTHelper;
@@ -38,6 +39,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final PendingRegistrationService pendingRegistrationService;
     private final LoginOtpRedisService loginOtpRedisService;
+    private final GoogleTokenVerifier googleTokenVerifier;
     private final JobSeekerProfileRepository jobSeekerProfileRepository;
     private final CompanyRepository companyRepository;
     private final AwsS3Service awsS3Service;
@@ -132,6 +134,9 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(loginRequest.getEmail())
                 .orElseThrow(() -> new BadRequestException("Invalid email or password"));
 
+        if (user.getPasswordHash() == null) {
+            throw new BadRequestException("Account uses Google sign-in. Please use Google to login.");
+        }
         if(!passwordEncoder.matches(loginRequest.getPassword(), user.getPasswordHash())){
             throw new BadRequestException("Invalid email or password");
         }
@@ -265,6 +270,60 @@ public class AuthServiceImpl implements AuthService {
         loginOtpRedisService.deleteOtp(email);
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BadRequestException("User not found"));
+        String token = jwtHelper.generateToken(user.getEmail());
+        AuthResponse response = new AuthResponse();
+        response.setToken(token);
+        response.setEmail(user.getEmail());
+        response.setFullName(user.getFullName());
+        response.setRole(user.getRole().getRoleName());
+        response.setUserId(user.getUserId());
+        response.setPhone(user.getPhone());
+        String roleName = user.getRole().getRoleName();
+        if (roleName.equals("ROLE_JOBSEEKER")) {
+            JobSeekerProfile profile = jobSeekerProfileRepository.findByUser_UserId(user.getUserId())
+                    .orElseThrow(() -> new BadRequestException("Profile not found"));
+            response.setProfileId(profile.getProfileId());
+            response.setAvatar(profile.getAvatarUrl());
+        } else if (roleName.equals("ROLE_COMPANY")) {
+            Company company = companyRepository.findByUser_UserId(user.getUserId())
+                    .orElseThrow(() -> new BadRequestException("Company not found"));
+            response.setCompanyId(company.getCompanyId());
+            response.setCompanyName(company.getCompanyName());
+            response.setAvatar(company.getLogoUrl());
+        }
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse loginWithGoogle(String idToken) {
+        GoogleTokenVerifier.GoogleUserInfo info = googleTokenVerifier.verify(idToken);
+
+        User user = userRepository.findByEmail(info.getEmail()).orElse(null);
+
+        if (user == null) {
+            Role role = roleRepository.findByRoleName("ROLE_JOBSEEKER")
+                    .orElseThrow(() -> new BadRequestException("Role not found"));
+
+            user = new User();
+            user.setEmail(info.getEmail());
+            user.setFullName(info.getName() != null ? info.getName() : info.getEmail());
+            user.setRole(role);
+            user.setIsVerified(true);
+            user.setCreatedAt(LocalDateTime.now());
+            user.setPasswordHash(null);
+            userRepository.save(user);
+
+            JobSeekerProfile profile = new JobSeekerProfile();
+            profile.setUser(user);
+            profile.setAvatarUrl(info.getPicture() != null ? info.getPicture() : DEFAULT_AVATAR_URL);
+            jobSeekerProfileRepository.save(profile);
+        }
+
+        return buildAuthResponse(user);
+    }
+
+    private AuthResponse buildAuthResponse(User user) {
         String token = jwtHelper.generateToken(user.getEmail());
         AuthResponse response = new AuthResponse();
         response.setToken(token);
