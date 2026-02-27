@@ -4,12 +4,17 @@ import com.JobsNow.backend.dto.CompanyDTO;
 import com.JobsNow.backend.dto.CompanyImageDTO;
 import com.JobsNow.backend.entity.Company;
 import com.JobsNow.backend.entity.CompanyImage;
+import com.JobsNow.backend.entity.Industry;
+import com.JobsNow.backend.entity.User;
 import com.JobsNow.backend.entity.enums.CompanyImageType;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.CompanyMapper;
 import com.JobsNow.backend.repositories.CompanyImageRepository;
 import com.JobsNow.backend.repositories.CompanyRepository;
+import com.JobsNow.backend.repositories.IndustryRepository;
+import com.JobsNow.backend.repositories.UserRepository;
+import com.JobsNow.backend.request.CreateCompanyRequest;
 import com.JobsNow.backend.request.UpdateCompanyRequest;
 import com.JobsNow.backend.service.AwsS3Service;
 import com.JobsNow.backend.service.CompanyService;
@@ -25,6 +30,8 @@ import java.util.stream.Collectors;
 public class CompanyServiceImpl implements CompanyService {
     private final CompanyRepository companyRepository;
     private final CompanyImageRepository companyImageRepository;
+    private final UserRepository userRepository;
+    private final IndustryRepository industryRepository;
     private final AwsS3Service awsS3Service;
     @Override
     public List<CompanyDTO> getAllCompanies() {
@@ -43,6 +50,77 @@ public class CompanyServiceImpl implements CompanyService {
     }
 
     @Override
+    public CompanyDTO getMyCompany(String email) {
+        var user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        Company company = companyRepository.findByUser_UserId(user.getUserId())
+                .orElseThrow(() -> new NotFoundException("Company not found"));
+        return CompanyMapper.toCompanyDTO(company);
+    }
+
+    @Override
+    public CompanyDTO createMyCompany(String email, CreateCompanyRequest request, MultipartFile logoFile) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        if (companyRepository.findByUser_UserId(user.getUserId()).isPresent()) {
+            throw new BadRequestException("User already has a company");
+        }
+        String companyName = request.getCompanyName() != null && !request.getCompanyName().isEmpty()
+                ? request.getCompanyName() : request.getName();
+        if (companyName == null || companyName.isEmpty()) {
+            throw new BadRequestException("Company name is required");
+        }
+        if (companyRepository.existsByCompanyName(companyName)) {
+            throw new BadRequestException("Company name already exists");
+        }
+
+        Company company = new Company();
+        company.setUser(user);
+        company.setCompanyName(companyName);
+        company.setWebsite(request.getWebsite());
+        company.setDescription(request.getDescription());
+        company.setSlogan(request.getSlogan());
+        company.setAddress(request.getAddress());
+        company.setCompanySize(request.getCompanySize());
+        company.setIsVerified(false);
+        company.setJobPostCount(0);
+
+        Integer industryId = parseIndustryId(request.getIndustryId());
+        if (industryId != null) {
+            Industry industry = industryRepository.findById(industryId)
+                    .orElseThrow(() -> new NotFoundException("Industry not found"));
+            company.setIndustries(java.util.Collections.singletonList(industry));
+        }
+
+        if (logoFile != null && !logoFile.isEmpty()) {
+            try {
+                String originalFileName = logoFile.getOriginalFilename();
+                int dotIdx = originalFileName != null ? originalFileName.lastIndexOf(".") : -1;
+                String baseName = dotIdx > 0 ? originalFileName.substring(0, dotIdx) : "logo";
+                String extension = dotIdx > 0 ? originalFileName.substring(dotIdx) : "";
+                String s3Key = "logos/" + baseName + "_" + System.currentTimeMillis() + extension;
+                String logoUrl = awsS3Service.uploadFileToS3(logoFile.getInputStream(), s3Key, logoFile.getContentType());
+                company.setLogoUrl(logoUrl);
+            } catch (Exception e) {
+                throw new BadRequestException("Failed to upload logo");
+            }
+        }
+
+        companyRepository.save(company);
+        return CompanyMapper.toCompanyDTO(company);
+    }
+
+    private Integer parseIndustryId(Object val) {
+        if (val == null) return null;
+        if (val instanceof Number) return ((Number) val).intValue();
+        try {
+            return Integer.parseInt(String.valueOf(val));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    @Override
     public List<CompanyDTO> findCompanyByIndustryOrCompanyName(Integer industryId, String companyName) {
         List<Company> companies = companyRepository.findByIndustryOrCompanyName(industryId, companyName);
         return companies.stream()
@@ -50,11 +128,13 @@ public class CompanyServiceImpl implements CompanyService {
                 .collect(Collectors.toList());
     }
     @Override
-    public void updateCompany(Integer companyId, UpdateCompanyRequest request) {
+    public void updateCompany(Integer companyId, UpdateCompanyRequest request, MultipartFile logoFile, MultipartFile bannerFile, List<MultipartFile> thumbnailFiles) {
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found"));
+
         if (request.getCompanyName() != null && !request.getCompanyName().isEmpty()) {
-            if(companyRepository.existsByCompanyName(request.getCompanyName())){
+            if (!request.getCompanyName().equalsIgnoreCase(company.getCompanyName())
+                    && companyRepository.existsByCompanyName(request.getCompanyName())) {
                 throw new BadRequestException("Company name already exists");
             }
             company.setCompanyName(request.getCompanyName());
@@ -68,6 +148,39 @@ public class CompanyServiceImpl implements CompanyService {
         if(request.getSlogan() != null){
             company.setSlogan(request.getSlogan());
         }
+        if(request.getAddress() != null){
+            company.setAddress(request.getAddress());
+        }
+        if(request.getCompanySize() != null){
+            company.setCompanySize(request.getCompanySize());
+        }
+        if(request.getIndustryId() != null){
+            Industry industry = industryRepository.findById(request.getIndustryId())
+                    .orElseThrow(() -> new NotFoundException("Industry not found"));
+            company.setIndustries(java.util.Collections.singletonList(industry));
+        }
+        companyRepository.save(company);
+
+        if (logoFile != null && !logoFile.isEmpty()) {
+            uploadLogo(companyId, logoFile);
+        }
+        if (bannerFile != null && !bannerFile.isEmpty()) {
+            uploadBanner(companyId, bannerFile);
+        }
+        if (thumbnailFiles != null && !thumbnailFiles.isEmpty()) {
+            for (MultipartFile imageFile : thumbnailFiles) {
+                if (imageFile != null && !imageFile.isEmpty()) {
+                    addCompanyImage(companyId, imageFile, "OTHER");
+                }
+            }
+        }
+    }
+
+    @Override
+    public void deleteLogo(Integer companyId) {
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new NotFoundException("Company not found"));
+        company.setLogoUrl(null);
         companyRepository.save(company);
     }
 
@@ -89,6 +202,14 @@ public class CompanyServiceImpl implements CompanyService {
         }catch (Exception e){
             throw new BadRequestException("Failed to upload logo");
         }
+    }
+
+    @Override
+    public void deleteBanner(Integer companyId) {
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new NotFoundException("Company not found"));
+        company.setBannerUrl(null);
+        companyRepository.save(company);
     }
 
     @Override

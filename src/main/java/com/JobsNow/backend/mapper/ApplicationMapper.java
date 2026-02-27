@@ -32,6 +32,8 @@ public class ApplicationMapper {
     public static ApplicationDetailResponse toDetailResponse(Application application, List<ApplicationStatusHistory> historyList){
         return ApplicationDetailResponse.builder()
                 .applicationId(application.getApplicationId())
+                .status(application.getApplicationStatus() != null ? application.getApplicationStatus().name() : null)
+                .appliedAt(application.getAppliedAt())
                 .job(JobMapper.toJobDTO(application.getJob()))
                 .jobSeekerProfile(JobSeekerProfileMapper.toJobSeekerProfileDTO(application.getJobSeekerProfile()))
                 .resumeApplied(ResumeMapper.toResumeDTO(application.getResume()))

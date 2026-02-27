@@ -35,6 +35,11 @@ public class ApplicationController {
         return ResponseFactory.success(applicationService.getApplicationsByJob(jobId));
     }
 
+    @GetMapping("/company/{companyId}")
+    public ResponseEntity<?> getApplicationsByCompany(@PathVariable Integer companyId){
+        return ResponseFactory.success(applicationService.getApplicationsByCompany(companyId));
+    }
+
     @PutMapping("{applicationId}/status")
     public ResponseEntity<?> updateApplicationStatus(@PathVariable Integer applicationId, @RequestParam String status){
         applicationService.updateApplicationStatus(applicationId, status);

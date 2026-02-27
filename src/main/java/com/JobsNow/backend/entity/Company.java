@@ -32,6 +32,10 @@ public class Company {
 
     private String description;
 
+    private String address;
+
+    private String companySize;
+
     private Boolean isVerified = false;
 
     @OneToOne(fetch = FetchType.LAZY)

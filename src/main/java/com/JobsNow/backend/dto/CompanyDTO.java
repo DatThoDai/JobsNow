@@ -17,6 +17,9 @@ public class CompanyDTO {
     private String slogan;
     private String website;
     private String description;
+    private String address;
+    private String companySize;
+    private Integer industryId;
     private Boolean isVerified;
     private Integer jobPostCount;
 

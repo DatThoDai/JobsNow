@@ -84,6 +84,17 @@ public class ApplicationServiceImpl implements ApplicationService {
     }
 
     @Override
+    public List<ApplicationDetailResponse> getApplicationsByCompany(Integer companyId) {
+        List<Application> applications = applicationRepository.findByJob_Company_CompanyId(companyId);
+        return applications.stream()
+                .map(app -> {
+                    List<ApplicationStatusHistory> history = applicationStatusHistoryRepository.findByApplication_ApplicationIdOrderByChangedAtAsc(app.getApplicationId());
+                    return ApplicationMapper.toDetailResponse(app, history);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void updateApplicationStatus(Integer applicationId, String status) {
         Application application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new NotFoundException("Application not found"));
