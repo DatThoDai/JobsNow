@@ -19,12 +19,16 @@ import com.JobsNow.backend.request.UpdateCompanyRequest;
 import com.JobsNow.backend.service.AwsS3Service;
 import com.JobsNow.backend.service.CompanyService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CompanyServiceImpl implements CompanyService {
@@ -85,11 +89,15 @@ public class CompanyServiceImpl implements CompanyService {
         company.setIsVerified(false);
         company.setJobPostCount(0);
 
-        Integer industryId = parseIndustryId(request.getIndustryId());
-        if (industryId != null) {
-            Industry industry = industryRepository.findById(industryId)
-                    .orElseThrow(() -> new NotFoundException("Industry not found"));
-            company.setIndustries(java.util.Collections.singletonList(industry));
+        List<Integer> industryIds = request.getIndustryIds() != null ? request.getIndustryIds() : Collections.emptyList();
+        if (!industryIds.isEmpty()) {
+            List<Industry> industryList = new ArrayList<>();
+            for (Integer id : industryIds) {
+                Industry industry = industryRepository.findById(id)
+                        .orElseThrow(() -> new NotFoundException("Industry not found: " + id));
+                industryList.add(industry);
+            }
+            company.setIndustries(industryList);
         }
 
         if (logoFile != null && !logoFile.isEmpty()) {
@@ -108,16 +116,6 @@ public class CompanyServiceImpl implements CompanyService {
 
         companyRepository.save(company);
         return CompanyMapper.toCompanyDTO(company);
-    }
-
-    private Integer parseIndustryId(Object val) {
-        if (val == null) return null;
-        if (val instanceof Number) return ((Number) val).intValue();
-        try {
-            return Integer.parseInt(String.valueOf(val));
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 
     @Override
@@ -154,10 +152,14 @@ public class CompanyServiceImpl implements CompanyService {
         if(request.getCompanySize() != null){
             company.setCompanySize(request.getCompanySize());
         }
-        if(request.getIndustryId() != null){
-            Industry industry = industryRepository.findById(request.getIndustryId())
-                    .orElseThrow(() -> new NotFoundException("Industry not found"));
-            company.setIndustries(java.util.Collections.singletonList(industry));
+        if (request.getIndustryIds() != null && !request.getIndustryIds().isEmpty()) {
+            List<Industry> industryList = new ArrayList<>();
+            for (Integer id : request.getIndustryIds()) {
+                Industry industry = industryRepository.findById(id)
+                        .orElseThrow(() -> new NotFoundException("Industry not found: " + id));
+                industryList.add(industry);
+            }
+            company.setIndustries(industryList);
         }
         companyRepository.save(company);
 

@@ -53,10 +53,15 @@ public class SecurityConfig {
                     request.requestMatchers("/auth/**").permitAll();
                     request.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll();
 
+                    request.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+
                     request.requestMatchers(HttpMethod.GET, "/job", "/job/{jobId}", "/job/searchJobs").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/job/company/{companyId}").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/skill/all").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/category/**", "/industry/**", "/skill/**").permitAll();
+                    request.requestMatchers(HttpMethod.POST, "/industry/add").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.PUT, "/industry/update").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.DELETE, "/industry/delete/**").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.GET, "/company/me").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.POST, "/company/me").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/company/update/**").hasRole("COMPANY");

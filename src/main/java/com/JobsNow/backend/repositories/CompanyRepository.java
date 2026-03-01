@@ -24,5 +24,6 @@ public interface CompanyRepository extends JpaRepository<Company, Integer> {
             @Param("companyName") String companyName
     );
 
-
+    @Query("SELECT COUNT(c) > 0 FROM Company c JOIN c.industries i WHERE i.industryId = :industryId")
+    boolean existsByIndustryId(@Param("industryId") Integer industryId);
 }
