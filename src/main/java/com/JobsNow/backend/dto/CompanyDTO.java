@@ -19,7 +19,8 @@ public class CompanyDTO {
     private String description;
     private String address;
     private String companySize;
-    private Integer industryId;
+    private List<Integer> industryIds;
+    private List<IndustryDTO> industries;
     private Boolean isVerified;
     private Integer jobPostCount;
 
