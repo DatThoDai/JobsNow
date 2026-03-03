@@ -57,6 +57,9 @@ public class Job {
 
     private String note;
 
+    @Column(columnDefinition = "TEXT")
+    private String thumbnailUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private JobCategory category;
