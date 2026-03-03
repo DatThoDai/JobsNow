@@ -26,6 +26,7 @@ public class JobDTO {
     private LocalDateTime postedAt;
     private LocalDate deadline;
     private Boolean isActive;
+    private String thumbnailUrl;
 
     private Integer companyId;
     private String companyName;

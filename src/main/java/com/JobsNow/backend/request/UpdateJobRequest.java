@@ -35,6 +35,7 @@ public class UpdateJobRequest {
 
     private Integer categoryId;
     private Boolean isActive;
+    private String thumbnailUrl;
     private List<JobSkillItem> jobSkills;
     private List<Integer> majorIds;
 

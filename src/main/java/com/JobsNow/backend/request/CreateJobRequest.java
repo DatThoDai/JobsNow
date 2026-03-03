@@ -56,6 +56,9 @@ public class CreateJobRequest {
 
     private List<Integer> majorIds;
 
+    private String thumbnailUrl;
+    private Boolean isActive;
+
     @Data
     public static class JobSkillItem {
         private Integer skillId;

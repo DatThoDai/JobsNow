@@ -55,11 +55,20 @@ public class JobServiceImpl implements JobService {
         job.setLocation(request.getLocation());
         job.setDeadline(request.getDeadline());
         job.setPostedAt(LocalDateTime.now());
-        job.setIsActive(false);
         job.setIsDeleted(false);
-        job.setIsPending(true);
-        job.setIsApproved(false);
         job.setIsExpired(false);
+        if (request.getThumbnailUrl() != null && !request.getThumbnailUrl().isBlank()) {
+            job.setThumbnailUrl(request.getThumbnailUrl());
+        }
+        if (request.getIsActive() != null && request.getIsActive()) {
+            job.setIsActive(true);
+            job.setIsPending(false);
+            job.setIsApproved(true);
+        } else {
+            job.setIsActive(false);
+            job.setIsPending(true);
+            job.setIsApproved(false);
+        }
         if (request.getJobType() != null) {
             job.setJobType(JobType.valueOf(request.getJobType().toUpperCase()));
         }
@@ -224,6 +233,9 @@ public class JobServiceImpl implements JobService {
         }
         if (request.getIsActive() != null) {
             job.setIsActive(request.getIsActive());
+        }
+        if (request.getThumbnailUrl() != null) {
+            job.setThumbnailUrl(request.getThumbnailUrl());
         }
         job.setIsPending(true);
         job.setIsApproved(false);
