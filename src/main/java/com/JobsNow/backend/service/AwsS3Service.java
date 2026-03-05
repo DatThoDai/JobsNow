@@ -1,6 +1,7 @@
 package com.JobsNow.backend.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -13,6 +14,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import java.io.IOException;
 import java.io.InputStream;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AwsS3Service {
@@ -37,6 +39,7 @@ public class AwsS3Service {
 
             return endpointURL + s3Key;
         } catch (Exception e) {
+            log.error("AWS S3 upload error - bucket: {}, key: {}, error: {}", bucketName, s3Key, e.getMessage(), e);
             throw new RuntimeException("Upload file failed", e);
         } finally {
             try {

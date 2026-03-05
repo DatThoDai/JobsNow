@@ -54,6 +54,7 @@ public class SecurityConfig {
                     request.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll();
 
                     request.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+                    request.requestMatchers("/ws/**").permitAll();
 
                     request.requestMatchers(HttpMethod.GET, "/job", "/job/{jobId}", "/job/searchJobs").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/job/company/{companyId}").permitAll();
@@ -105,6 +106,8 @@ public class SecurityConfig {
                     request.requestMatchers("/profile/{profileId}/avatar").hasRole("JOBSEEKER");
                     request.requestMatchers("/profile/skills").hasRole("JOBSEEKER");
                     request.requestMatchers("/savedJob/**").hasRole("JOBSEEKER");
+
+                    request.requestMatchers("/chat/**").authenticated();
                     request.anyRequest().authenticated();
 
                 })
