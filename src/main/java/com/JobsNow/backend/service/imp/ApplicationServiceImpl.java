@@ -1,5 +1,6 @@
 package com.JobsNow.backend.service.imp;
 
+import com.JobsNow.backend.constants.JobsNowConstant;
 import com.JobsNow.backend.entity.*;
 import com.JobsNow.backend.entity.enums.ApplicationStatus;
 import com.JobsNow.backend.exception.BadRequestException;
@@ -7,10 +8,13 @@ import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.ApplicationMapper;
 import com.JobsNow.backend.repositories.*;
 import com.JobsNow.backend.request.ApplicationRequest;
+import com.JobsNow.backend.request.CreateNotificationRequest;
 import com.JobsNow.backend.response.ApplicationDetailResponse;
 import com.JobsNow.backend.response.ApplicationOfJobResponse;
+import com.JobsNow.backend.response.NotificationResponse;
 import com.JobsNow.backend.service.ApplicationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +30,8 @@ public class ApplicationServiceImpl implements ApplicationService {
     private final JobSeekerProfileRepository jobSeekerProfileRepository;
     private final ResumeRepository resumeRepository;
     private final ApplicationStatusHistoryRepository applicationStatusHistoryRepository;
+    private final NotificationServiceImpl notificationService;
+    private final SimpMessagingTemplate messagingTemplate;
     @Override
     @Transactional
     public void applyForJob(ApplicationRequest request) {
@@ -103,6 +109,17 @@ public class ApplicationServiceImpl implements ApplicationService {
             application.setApplicationStatus(newStatus);
             applicationRepository.save(application);
             saveStatusHistory(application, newStatus);
+
+            Integer jobSeekerId = application.getJobSeekerProfile().getUser().getUserId();
+            CreateNotificationRequest notiRequest = CreateNotificationRequest.builder()
+                    .applicationId(applicationId)
+                    .userId(jobSeekerId)
+                    .content(newStatus.toString())
+                    .build();
+            NotificationResponse notification = notificationService.createNotification(notiRequest);
+            messagingTemplate.convertAndSend(
+                    JobsNowConstant.WS_TOPIC_NOTIFICATION + jobSeekerId,
+                    notification);
         }catch (IllegalArgumentException e){
             throw new BadRequestException("Invalid application status");
         }
@@ -111,7 +128,7 @@ public class ApplicationServiceImpl implements ApplicationService {
     private void saveStatusHistory(Application application, ApplicationStatus status) {
         ApplicationStatusHistory history = ApplicationStatusHistory.builder()
                 .application(application)
-                .applicationStatus(ApplicationStatus.PENDING)
+                .applicationStatus(status)
                 .changedAt(LocalDateTime.now())
                 .build();
         applicationStatusHistoryRepository.save(history);

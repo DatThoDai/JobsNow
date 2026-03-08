@@ -108,6 +108,7 @@ public class SecurityConfig {
                     request.requestMatchers("/savedJob/**").hasRole("JOBSEEKER");
 
                     request.requestMatchers("/chat/**").authenticated();
+                    request.requestMatchers("/notification/**").authenticated();
                     request.anyRequest().authenticated();
 
                 })
