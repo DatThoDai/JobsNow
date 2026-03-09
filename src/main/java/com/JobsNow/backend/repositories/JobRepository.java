@@ -5,6 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -29,4 +31,11 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
             @Param("location") List<String> location,
             @Param("categoryId") Integer categoryId
     );
+
+    Long countByIsApprovedFalse();
+    @Query("SELECT j.company.companyName, COUNT(j) FROM Job j " +
+            "WHERE j.postedAt BETWEEN :start AND :end " +
+            "GROUP BY j.company.companyName ORDER BY COUNT(j) DESC")
+    List<Object[]> countJobsByCompanyAndCreatedAtBetween(
+            @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 }

@@ -1,6 +1,10 @@
 package com.JobsNow.backend.service.imp;
 
 import com.JobsNow.backend.constants.JobsNowConstant;
+import com.JobsNow.backend.dto.ChartDataDTO;
+import com.JobsNow.backend.dto.CompanyJobStatsDTO;
+import com.JobsNow.backend.dto.RecentApplicationDTO;
+import com.JobsNow.backend.dto.RegionChartDataDTO;
 import com.JobsNow.backend.entity.*;
 import com.JobsNow.backend.entity.enums.ApplicationStatus;
 import com.JobsNow.backend.exception.BadRequestException;
@@ -19,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -123,6 +128,101 @@ public class ApplicationServiceImpl implements ApplicationService {
         }catch (IllegalArgumentException e){
             throw new BadRequestException("Invalid application status");
         }
+    }
+
+    @Override
+    public List<RecentApplicationDTO> getRecentApplications() {
+        return applicationRepository.findTop5ByOrderByAppliedAtDesc().stream()
+                .map(app -> RecentApplicationDTO.builder()
+                        .id(app.getApplicationId())
+                        .applicant(app.getJobSeekerProfile().getUser().getFullName())
+                        .jobTitle(app.getJob().getTitle())
+                        .status(app.getApplicationStatus().toString())
+                        .date(app.getAppliedAt().toString())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public ChartDataDTO getApplicationTrends(String type, Integer month) {
+        ChartDataDTO dto = new ChartDataDTO();
+        LocalDateTime now = LocalDateTime.now();
+        int currentYear = now.getYear();
+        if ("range".equals(type)) {
+            // Theo từng tháng trong năm
+            List<String> labels = new ArrayList<>();
+            List<Long> counts = new ArrayList<>();
+            for (int m = 1; m <= now.getMonthValue(); m++) {
+                LocalDateTime start = LocalDateTime.of(currentYear, m, 1, 0, 0);
+                LocalDateTime end = start.plusMonths(1);
+                long count = applicationRepository.countByAppliedAtBetween(start, end);
+                labels.add(java.time.Month.of(m).name().substring(0, 3));
+                counts.add(count);
+            }
+            dto.setLabels(labels);
+            dto.setCounts(counts);
+        } else if ("month".equals(type) && month != null) {
+            // Theo từng ngày trong tháng
+            java.time.YearMonth yearMonth = java.time.YearMonth.of(currentYear, month);
+            List<String> labels = new ArrayList<>();
+            List<Long> counts = new ArrayList<>();
+            for (int day = 1; day <= yearMonth.lengthOfMonth(); day++) {
+                LocalDateTime start = LocalDateTime.of(currentYear, month, day, 0, 0);
+                LocalDateTime end = start.plusDays(1);
+                long count = applicationRepository.countByAppliedAtBetween(start, end);
+                labels.add(String.format("%02d", day));
+                counts.add(count);
+            }
+            dto.setLabels(labels);
+            dto.setCounts(counts);
+        } else {
+            throw new BadRequestException("Invalid type or month");
+        }
+        return dto;
+    }
+
+    @Override
+    public RegionChartDataDTO getActiveRegions(String type, Integer month) {
+        RegionChartDataDTO dto = new RegionChartDataDTO();
+        LocalDateTime now = LocalDateTime.now();
+        int currentYear = now.getYear();
+        List<Object[]> results;
+        if ("range".equals(type)) {
+            LocalDateTime start = LocalDateTime.of(currentYear, 1, 1, 0, 0);
+            LocalDateTime end = now;
+            results = applicationRepository.countByLocationAndAppliedAtBetween(start, end);
+        } else if ("month".equals(type) && month != null) {
+            LocalDateTime start = LocalDateTime.of(currentYear, month, 1, 0, 0);
+            LocalDateTime end = start.plusMonths(1);
+            results = applicationRepository.countByLocationAndAppliedAtBetween(start, end);
+        } else {
+            throw new BadRequestException("Invalid type or month");
+        }
+        dto.setLabels(results.stream().map(r -> (String) r[0]).collect(Collectors.toList()));
+        dto.setCounts(results.stream().map(r -> ((Number) r[1]).longValue()).collect(Collectors.toList()));
+        return dto;
+    }
+
+    @Override
+    public CompanyJobStatsDTO getCompanyJobStats(String type, Integer month) {
+        CompanyJobStatsDTO dto = new CompanyJobStatsDTO();
+        LocalDateTime now = LocalDateTime.now();
+        int currentYear = now.getYear();
+        List<Object[]> results;
+        if ("range".equals(type)) {
+            LocalDateTime start = LocalDateTime.of(currentYear, 1, 1, 0, 0);
+            LocalDateTime end = now;
+            results = jobRepository.countJobsByCompanyAndCreatedAtBetween(start, end);
+        } else if ("month".equals(type) && month != null) {
+            LocalDateTime start = LocalDateTime.of(currentYear, month, 1, 0, 0);
+            LocalDateTime end = start.plusMonths(1);
+            results = jobRepository.countJobsByCompanyAndCreatedAtBetween(start, end);
+        } else {
+            throw new BadRequestException("Invalid type or month");
+        }
+        dto.setLabels(results.stream().map(r -> (String) r[0]).collect(Collectors.toList()));
+        dto.setCounts(results.stream().map(r -> ((Number) r[1]).longValue()).collect(Collectors.toList()));
+        return dto;
     }
 
     private void saveStatusHistory(Application application, ApplicationStatus status) {

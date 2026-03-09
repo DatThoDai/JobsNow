@@ -10,15 +10,19 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AwsS3Service {
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
 
     @Value("${aws.s3.bucketName}")
     private String bucketName;
@@ -48,5 +52,21 @@ public class AwsS3Service {
                 System.err.println("Error closing input stream: " + ex.getMessage());
             }
         }
+    }
+    public String generatePreSignedUrl(String fileName, String contentType) {
+        int extIndex = fileName.lastIndexOf(".");
+        String baseName = fileName.substring(0, extIndex);
+        String extension = fileName.substring(extIndex);
+        String newFileName = baseName + "_" + System.currentTimeMillis() + extension;
+
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(newFileName)
+                .contentType(contentType)
+                .build();
+        PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(r -> r
+                .signatureDuration(Duration.ofMinutes(3))
+                .putObjectRequest(putObjectRequest));
+        return presignedRequest.url().toString();
     }
 }

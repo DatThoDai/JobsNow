@@ -81,6 +81,7 @@ public class SecurityConfig {
                     request.requestMatchers("/category/add", "/category/update", "/category/delete/**").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.GET, "/profile/all").hasAnyRole("ADMIN", "COMPANY");
                     request.requestMatchers("/major/**").hasRole("ADMIN");
+                    request.requestMatchers("/admin/**").hasRole("ADMIN");
                     // COMPANY
                     request.requestMatchers("/job/create").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/job/{jobId}").hasRole("COMPANY");
@@ -109,6 +110,7 @@ public class SecurityConfig {
 
                     request.requestMatchers("/chat/**").authenticated();
                     request.requestMatchers("/notification/**").authenticated();
+                    request.requestMatchers("/aws/s3/**").authenticated();
                     request.anyRequest().authenticated();
 
                 })
