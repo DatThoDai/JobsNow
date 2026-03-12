@@ -46,3 +46,8 @@ aws:
     secretKey: ${AWS_SECRET_KEY}
     region: ${AWS_REGION}
     endpointUrl: ${AWS_S3_ENDPOINT_URL}
+openai:
+  api-key: ${OPENAI_API_KEY}
+  model: gpt-4o-mini
+  max-tokens: 3000
+  base-url: https://api.openai.com/v1

@@ -29,6 +29,7 @@ public class Resume {
     @Column(columnDefinition = "TEXT")
     private String summary;
 
+    @Column(columnDefinition = "TEXT")
     private String extractedText;
 
     private LocalDateTime uploadedAt;

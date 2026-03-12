@@ -116,6 +116,7 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.POST, "/company/review/add").authenticated();
                     request.requestMatchers(HttpMethod.PUT, "/company/review/update").authenticated();
                     request.requestMatchers(HttpMethod.DELETE, "/company/review/**").authenticated();
+                    request.requestMatchers("/api/ai/**").authenticated();
                     request.anyRequest().authenticated();
 
                 })
