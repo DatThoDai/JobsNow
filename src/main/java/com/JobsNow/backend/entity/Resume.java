@@ -26,6 +26,9 @@ public class Resume {
 
     private String resumeUrl;
 
+    @Column(columnDefinition = "TEXT")
+    private String summary;
+
     private String extractedText;
 
     private LocalDateTime uploadedAt;

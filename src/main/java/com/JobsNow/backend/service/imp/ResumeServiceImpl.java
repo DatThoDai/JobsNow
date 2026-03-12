@@ -9,6 +9,8 @@ import com.JobsNow.backend.mapper.ResumeMapper;
 import com.JobsNow.backend.repositories.JobSeekerProfileRepository;
 import com.JobsNow.backend.repositories.ResumeRepository;
 import com.JobsNow.backend.request.CreateResumeRequest;
+import com.JobsNow.backend.request.InitResumeRequest;
+import com.JobsNow.backend.request.UpdateResumeRequest;
 import com.JobsNow.backend.service.AwsS3Service;
 import com.JobsNow.backend.service.ResumeService;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +56,42 @@ public class ResumeServiceImpl implements ResumeService {
         } catch (IOException e) {
             throw new BadRequestException("Failed to upload resume: " + e.getMessage());
         }
+    }
+
+    @Override
+    public ResumeDTO initResume(Integer profileId, InitResumeRequest request) {
+        JobSeekerProfile profile = jobSeekerProfileRepository.findById(profileId)
+                .orElseThrow(() -> new NotFoundException("Profile not found"));
+        boolean isExist = resumeRepository.existsByResumeNameAndJobSeekerProfile_ProfileId(request.getResumeName(), profile.getProfileId());
+        if (isExist) {
+            throw new BadRequestException("Resume with the same name already exists");
+        }
+        Resume resume = new Resume();
+        resume.setJobSeekerProfile(profile);
+        resume.setResumeName(request.getResumeName());
+        resume.setResumeUrl(null);
+        resume.setUploadedAt(LocalDateTime.now());
+        resume.setIsDeleted(false);
+        resume.setIsPrimary(false);
+        resumeRepository.save(resume);
+        return ResumeMapper.toResumeDTO(resume);
+    }
+
+    @Override
+    public ResumeDTO updateResume(Integer resumeId, UpdateResumeRequest request) {
+        Resume resume = resumeRepository.findById(resumeId)
+                .orElseThrow(() -> new NotFoundException("Resume not found"));
+        if (Boolean.TRUE.equals(resume.getIsDeleted())) {
+            throw new BadRequestException("Resume has been deleted");
+        }
+        if (request.getResumeName() != null && !request.getResumeName().isBlank()) {
+            resume.setResumeName(request.getResumeName());
+        }
+        if (request.getSummary() != null) {
+            resume.setSummary(request.getSummary());
+        }
+        resumeRepository.save(resume);
+        return ResumeMapper.toResumeDTO(resume);
     }
 
     @Override

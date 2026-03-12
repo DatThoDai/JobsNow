@@ -1,6 +1,9 @@
 package com.JobsNow.backend.controllers;
 
 import com.JobsNow.backend.request.CreateResumeRequest;
+import com.JobsNow.backend.request.InitResumeRequest;
+import com.JobsNow.backend.request.UpdateResumeRequest;
+import jakarta.validation.Valid;
 import com.JobsNow.backend.response.BaseResponse;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.ResumeService;
@@ -13,6 +16,11 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class ResumeController {
     private final ResumeService resumeService;
+    @PostMapping("/init/{profileId}")
+    public ResponseEntity<?> initResume(@PathVariable Integer profileId, @Valid @RequestBody InitResumeRequest request) {
+        return ResponseFactory.success(resumeService.initResume(profileId, request));
+    }
+
     @PostMapping("/create/{profileId}")
     public ResponseEntity<?> createResume(@PathVariable Integer profileId, @ModelAttribute CreateResumeRequest request) {
         resumeService.createResume(profileId, request);
@@ -28,6 +36,11 @@ public class ResumeController {
     @GetMapping("/profile/{profileId}")
     public ResponseEntity<?> getResumeById(@PathVariable Integer profileId) {
         return ResponseFactory.success(resumeService.getResumesByProfileId(profileId));
+    }
+
+    @PutMapping("/{resumeId}")
+    public ResponseEntity<?> updateResume(@PathVariable Integer resumeId, @RequestBody UpdateResumeRequest request) {
+        return ResponseFactory.success(resumeService.updateResume(resumeId, request));
     }
 
     @PutMapping("/{resumeId}/set-primary")

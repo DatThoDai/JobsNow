@@ -11,5 +11,7 @@ public class ResumeDTO {
     private Integer resumeId;
     private String resumeName;
     private String resumeUrl;
+    private String summary;
     private LocalDateTime uploadedAt;
+    private Boolean isPrimary;
 }
