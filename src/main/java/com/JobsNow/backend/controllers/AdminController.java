@@ -6,6 +6,7 @@ import com.JobsNow.backend.repositories.JobRepository;
 import com.JobsNow.backend.repositories.UserRepository;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.ApplicationService;
+import com.JobsNow.backend.service.JobService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +22,12 @@ public class AdminController {
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
     private final ApplicationService applicationService;
+    private final JobService jobService;
+
+    @GetMapping("/jobs")
+    public ResponseEntity<?> getJobsForAdmin(@RequestParam(required = false) String status) {
+        return ResponseFactory.success(jobService.getAllJobsForAdmin(status));
+    }
 
     @GetMapping("/stats")
     public ResponseEntity<?> getDashboardStats() {
