@@ -17,4 +17,6 @@ public interface JobService {
     List<JobDTO> searchJobs(String keyword, List<String> location, Integer categoryId);
     void approveJob(Integer jobId);
     void rejectJob(RejectJobRequest request);
+    /** Admin: all jobs (optional filter: pending | approved | rejected | all) */
+    List<JobDTO> getAllJobsForAdmin(String status);
 }

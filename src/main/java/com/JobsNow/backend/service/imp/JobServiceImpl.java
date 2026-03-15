@@ -115,6 +115,13 @@ public class JobServiceImpl implements JobService {
         companyRepository.save(company);
     }
 
+    private boolean isJobAvailable(Job job) {
+        return Boolean.TRUE.equals(job.getIsActive())
+                && Boolean.TRUE.equals(job.getIsApproved())
+                && !Boolean.TRUE.equals(job.getIsDeleted())
+                && !Boolean.TRUE.equals(job.getIsExpired());
+    }
+
     @Override
     public JobDTO getJobById(Integer jobId) {
         Job job = jobRepository.findById(jobId)
@@ -125,10 +132,7 @@ public class JobServiceImpl implements JobService {
     @Override
     public List<JobDTO> getAllJobs() {
         List<Job> jobs = jobRepository.findAll().stream()
-                .filter(job -> Boolean.TRUE.equals(job.getIsActive())
-                        && !Boolean.TRUE.equals(job.getIsDeleted())
-                        && Boolean.TRUE.equals(job.getIsApproved())
-                        && !Boolean.TRUE.equals(job.getIsExpired()))
+                .filter(this::isJobAvailable)
                 .toList();
         return jobs.stream()
                 .map(JobMapper::toJobDTO)
@@ -257,10 +261,7 @@ public class JobServiceImpl implements JobService {
             location = null;
         }
         List<Job> jobs = jobRepository.searchJobs(keyword, location, categoryId).stream()
-                .filter(job -> Boolean.TRUE.equals(job.getIsActive())
-                        && !Boolean.TRUE.equals(job.getIsDeleted())
-                        && Boolean.TRUE.equals(job.getIsApproved())
-                        && !Boolean.TRUE.equals(job.getIsExpired()))
+                .filter(this::isJobAvailable)
                 .toList();
         return jobs.stream()
                 .map(JobMapper::toJobDTO)
@@ -287,6 +288,24 @@ public class JobServiceImpl implements JobService {
         job.setIsActive(false);
         job.setNote(request.getReason());
         jobRepository.save(job);
+    }
+
+    @Override
+    public List<JobDTO> getAllJobsForAdmin(String status) {
+        List<Job> all = jobRepository.findAll();
+        if (status != null && !status.isBlank()) {
+            String s = status.trim().toLowerCase();
+            if ("pending".equals(s)) {
+                all = all.stream().filter(job -> Boolean.TRUE.equals(job.getIsPending())).toList();
+            } else if ("approved".equals(s)) {
+                all = all.stream().filter(job -> Boolean.TRUE.equals(job.getIsApproved())).toList();
+            } else if ("rejected".equals(s)) {
+                all = all.stream()
+                        .filter(job -> !Boolean.TRUE.equals(job.getIsApproved()) && !Boolean.TRUE.equals(job.getIsPending()))
+                        .toList();
+            }
+        }
+        return all.stream().map(JobMapper::toJobDTO).toList();
     }
 
     @Scheduled(cron = "0 0 0 * * ?")

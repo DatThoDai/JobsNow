@@ -28,7 +28,12 @@ public class JobMapper {
         dto.setPostedAt(job.getPostedAt());
         dto.setDeadline(job.getDeadline());
         dto.setIsActive(job.getIsActive());
+        dto.setIsApproved(job.getIsApproved());
+        dto.setIsPending(job.getIsPending());
+        dto.setIsDeleted(job.getIsDeleted());
+        dto.setIsExpired(job.getIsExpired());
         dto.setThumbnailUrl(job.getThumbnailUrl());
+        dto.setNote(job.getNote());
 
         if (job.getCompany() != null) {
             dto.setCompanyId(job.getCompany().getCompanyId());

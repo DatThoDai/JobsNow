@@ -26,7 +26,12 @@ public class JobDTO {
     private LocalDateTime postedAt;
     private LocalDate deadline;
     private Boolean isActive;
+    private Boolean isApproved;
+    private Boolean isPending;
+    private Boolean isDeleted;
+    private Boolean isExpired;
     private String thumbnailUrl;
+    private String note;
 
     private Integer companyId;
     private String companyName;
