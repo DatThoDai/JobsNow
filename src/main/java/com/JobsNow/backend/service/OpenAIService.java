@@ -23,19 +23,13 @@ public class OpenAIService {
     public OpenAIService(@Qualifier("openAIRestTemplate") RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
-    /**
-     * Gọi OpenAI Chat Completion API
-     * @param systemPrompt  Vai trò/hướng dẫn cho AI (VD: "You are a CV expert")
-     * @param userPrompt    Nội dung user gửi (VD: CV text cần phân tích)
-     * @return String content AI trả về
-     */
+
     public String chatCompletion(String systemPrompt, String userPrompt) {
         String url = baseUrl + "/chat/completions";
-        // Build request body theo format OpenAI API
         Map<String, Object> requestBody = Map.of(
                 "model", model,
                 "max_tokens", maxTokens,
-                "temperature", 0.3,  // Thấp → output ổn định, ít random
+                "temperature", 0.3,
                 "messages", List.of(
                         Map.of("role", "system", "content", systemPrompt),
                         Map.of("role", "user", "content", userPrompt)
@@ -43,7 +37,6 @@ public class OpenAIService {
         );
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(url, requestBody, String.class);
-            // Parse response: lấy choices[0].message.content
             JsonNode root = objectMapper.readTree(response.getBody());
             String content = root.path("choices").get(0).path("message").path("content").asText();
             log.info("OpenAI response received, tokens used: {}",
