@@ -11,6 +11,7 @@ import com.JobsNow.backend.request.SendTextMessageRequest;
 import com.JobsNow.backend.response.AttachmentResponse;
 import com.JobsNow.backend.response.ConversationResponse;
 import com.JobsNow.backend.response.MessageResponse;
+import com.JobsNow.backend.response.NotificationResponse;
 import com.JobsNow.backend.service.ConversationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.data.redis.core.RedisTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +32,8 @@ public class ConversationServiceImpl implements ConversationService {
     private final CompanyRepository companyRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatAttachmentRepository chatAttachmentRepository;
+    private final NotificationRepository notificationRepository;
+        private final RedisTemplate<String, String> redisTemplate;
     @Override
     public ConversationResponse createConversation(Integer candidateId, Integer employerId) {
         User candidate = userRepository.findById(candidateId)
@@ -38,7 +42,12 @@ public class ConversationServiceImpl implements ConversationService {
                 .orElseThrow(() -> new NotFoundException("Employer not found"));
         var existing = conversationRepository.findByCandidateUserAndEmployerUser(candidate, employer);
         if (existing.isPresent()) {
-            return buildConversationResponse(existing.get(), candidateId);
+                        Conversation conv = existing.get();
+                        conv.setDeletedByCandidate(false);
+                        conv.setDeletedByEmployer(false);
+                        conversationRepository.save(conv);
+                        publishConversationData(conv);
+                        return buildConversationResponse(conv, candidateId);
         }
         Conversation conversation = Conversation.builder()
                 .candidateUser(candidate)
@@ -49,12 +58,8 @@ public class ConversationServiceImpl implements ConversationService {
                 .unreadCountEmployer(0)
                 .build();
         Conversation saved = conversationRepository.save(conversation);
-        ConversationResponse response = buildConversationResponse(saved, candidateId);
-        messagingTemplate.convertAndSend(
-                JobsNowConstant.WS_TOPIC_DATA_CONVERSATION + candidateId, response);
-        messagingTemplate.convertAndSend(
-                JobsNowConstant.WS_TOPIC_DATA_CONVERSATION + employerId, response);
-        return response;
+        publishConversationData(saved);
+        return buildConversationResponse(saved, candidateId);
     }
 
     @Override
@@ -71,6 +76,12 @@ public class ConversationServiceImpl implements ConversationService {
             throw new BadRequestException("Unsupported role for chat");
         }
         return conversations.stream()
+                                .filter(c -> {
+                                        if ("ROLE_JOBSEEKER".equals(roleName)) {
+                                                return !Boolean.TRUE.equals(c.getDeletedByCandidate());
+                                        }
+                                        return !Boolean.TRUE.equals(c.getDeletedByEmployer());
+                                })
                 .map(c -> buildConversationResponse(c, userId))
                 .collect(Collectors.toList());
     }
@@ -83,6 +94,7 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public MessageResponse sendTextMessage(SendTextMessageRequest request) {
         Conversation conversation = conversationRepository.findById(request.getConversationId())
                 .orElseThrow(() -> new NotFoundException("Conversation not found"));
@@ -109,16 +121,50 @@ public class ConversationServiceImpl implements ConversationService {
             conversation.setUnreadCountCandidate(conversation.getUnreadCountCandidate() + 1);
             recipientId = conversation.getCandidateUser().getUserId();
         }
+                conversation.setDeletedByCandidate(false);
+                conversation.setDeletedByEmployer(false);
         conversation.setLastMessageAt(LocalDateTime.now());
         conversationRepository.save(conversation);
+                publishConversationData(conversation);
 
         Long totalUnread = conversationRepository.countUnreadConversations(recipientId);
         messagingTemplate.convertAndSend(
                 JobsNowConstant.WS_TOPIC_COUNT_UNREAD + recipientId, totalUnread);
+        String senderName = senderIsCandidate ? conversation.getCandidateUser().getFullName() : conversation.getEmployerUser().getFullName();
+
+        Notification notif = notificationRepository.findByConversationIdAndUser_UserId(conversation.getConversationId(), recipientId)
+                .orElse(null);
+        if (notif == null) {
+            User recipient = userRepository.findById(recipientId).orElse(null);
+            notif = Notification.builder()
+                    .type("CHAT")
+                    .user(recipient)
+                    .conversationId(conversation.getConversationId())
+                    .build();
+        }
+        notif.setSenderName(senderName);
+        notif.setContent("Tin nhắn mới: " + request.getContent());
+        notif.setCreatedAt(LocalDateTime.now());
+        notif.setIsRead(false);
+        notificationRepository.save(notif);
+
+        NotificationResponse notification = NotificationResponse.builder()
+                .notificationId(notif.getNotificationId())
+                .type("CHAT")
+                .senderName(senderName)
+                .conversationId(conversation.getConversationId())
+                .content(request.getContent())
+                .createdAt(notif.getCreatedAt())
+                .isRead(false)
+                .build();
+        messagingTemplate.convertAndSend(
+                JobsNowConstant.WS_TOPIC_NOTIFICATION + recipientId, notification);
+
         return buildMessageResponse(message);
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public MessageResponse sendFileMessage(SendFileMessageRequest request) {
         Conversation conversation = conversationRepository.findById(request.getConversationId())
                 .orElseThrow(() -> new NotFoundException("Conversation not found"));
@@ -158,12 +204,48 @@ public class ConversationServiceImpl implements ConversationService {
             conversation.setUnreadCountCandidate(conversation.getUnreadCountCandidate() + 1);
             recipientId = conversation.getCandidateUser().getUserId();
         }
+                conversation.setDeletedByCandidate(false);
+                conversation.setDeletedByEmployer(false);
         conversation.setLastMessageAt(LocalDateTime.now());
         conversationRepository.save(conversation);
+                publishConversationData(conversation);
 
         Long totalUnread = conversationRepository.countUnreadConversations(recipientId);
         messagingTemplate.convertAndSend(
                 JobsNowConstant.WS_TOPIC_COUNT_UNREAD + recipientId, totalUnread);
+
+        String senderName = senderIsCandidate ? conversation.getCandidateUser().getFullName() : conversation.getEmployerUser().getFullName();
+
+        String notifContent = request.getFileType() != null && request.getFileType().startsWith("image") ? "Đã gửi một hình ảnh" : "Đã gửi một tệp đính kèm";
+
+        Notification notif = notificationRepository.findByConversationIdAndUser_UserId(conversation.getConversationId(), recipientId)
+                .orElse(null);
+        if (notif == null) {
+            User recipient = userRepository.findById(recipientId).orElse(null);
+            notif = Notification.builder()
+                    .type("CHAT")
+                    .user(recipient)
+                    .conversationId(conversation.getConversationId())
+                    .build();
+        }
+        notif.setSenderName(senderName);
+        notif.setContent("Tin nhắn mới: " + notifContent);
+        notif.setCreatedAt(LocalDateTime.now());
+        notif.setIsRead(false);
+        notificationRepository.save(notif);
+
+        NotificationResponse notification = NotificationResponse.builder()
+                .notificationId(notif.getNotificationId())
+                .type("CHAT")
+                .senderName(senderName)
+                .conversationId(conversation.getConversationId())
+                .content(notifContent)
+                .createdAt(notif.getCreatedAt())
+                .isRead(false)
+                .build();
+        messagingTemplate.convertAndSend(
+                JobsNowConstant.WS_TOPIC_NOTIFICATION + recipientId, notification);
+
         return buildMessageResponse(message);
     }
 
@@ -194,6 +276,12 @@ public class ConversationServiceImpl implements ConversationService {
             conversation.setUnreadCountEmployer(0);
         }
         conversationRepository.save(conversation);
+
+        notificationRepository.findByConversationIdAndUser_UserId(conversationId, userId).ifPresent(notif -> {
+            notif.setIsRead(true);
+            notificationRepository.save(notif);
+        });
+
         Long totalUnread = conversationRepository.countUnreadConversations(userId);
         messagingTemplate.convertAndSend(
                 JobsNowConstant.WS_TOPIC_COUNT_UNREAD + userId, totalUnread);
@@ -209,6 +297,36 @@ public class ConversationServiceImpl implements ConversationService {
         Integer id = conversationRepository.findIdByCandidateAndEmployer(candidateId, employerId);
         return id != null ? id : 0;
     }
+
+        @Override
+        @org.springframework.transaction.annotation.Transactional
+        public void deleteConversation(Integer conversationId, Integer userId) {
+                Conversation conversation = conversationRepository.findById(conversationId)
+                                .orElseThrow(() -> new NotFoundException("Conversation not found"));
+
+                boolean isCandidate = conversation.getCandidateUser().getUserId().equals(userId);
+                boolean isEmployer = conversation.getEmployerUser().getUserId().equals(userId);
+                if (!isCandidate && !isEmployer) {
+                        throw new BadRequestException("You are not allowed to delete this conversation");
+                }
+
+                if (isCandidate) {
+                        conversation.setDeletedByCandidate(true);
+                        conversation.setUnreadCountCandidate(0);
+                } else {
+                        conversation.setDeletedByEmployer(true);
+                        conversation.setUnreadCountEmployer(0);
+                }
+                conversationRepository.save(conversation);
+
+                notificationRepository.findByConversationIdAndUser_UserId(conversationId, userId).ifPresent(notif -> {
+                        notif.setIsRead(true);
+                        notificationRepository.save(notif);
+                });
+
+                Long currentUserUnread = conversationRepository.countUnreadConversations(userId);
+                messagingTemplate.convertAndSend(JobsNowConstant.WS_TOPIC_COUNT_UNREAD + userId, currentUserUnread);
+        }
 
     private ConversationResponse buildConversationResponse(Conversation c, Integer currentUserId) {
         boolean isCandidate = c.getCandidateUser().getUserId().equals(currentUserId);
@@ -232,6 +350,17 @@ public class ConversationServiceImpl implements ConversationService {
         int unreadCount = isCandidate
                 ? c.getUnreadCountCandidate()
                 : c.getUnreadCountEmployer();
+        
+        String redisUserIdStr = String.valueOf(otherUser.getUserId());
+        Boolean isOnline = redisTemplate.opsForSet().isMember("online_users", redisUserIdStr);
+        String lastSeenStr = (String) redisTemplate.opsForValue().get("user:last_seen:" + redisUserIdStr);
+        LocalDateTime lastSeenTime = null;
+        if (lastSeenStr != null) {
+            try {
+                lastSeenTime = LocalDateTime.parse(lastSeenStr);
+            } catch (Exception ignored) {}
+        }
+
         return ConversationResponse.builder()
                 .conversationId(c.getConversationId())
                 .createdAt(c.getCreatedAt())
@@ -241,7 +370,22 @@ public class ConversationServiceImpl implements ConversationService {
                 .otherUserName(otherName)
                 .otherUserAvatar(otherAvatar)
                 .unreadCount(unreadCount)
+                .isOtherUserOnline(isOnline != null && isOnline)
+                .otherUserLastSeen(lastSeenTime)
                 .build();
+    }
+
+    private void publishConversationData(Conversation conversation) {
+        Integer candidateId = conversation.getCandidateUser().getUserId();
+        Integer employerId = conversation.getEmployerUser().getUserId();
+
+        ConversationResponse candidateView = buildConversationResponse(conversation, candidateId);
+        ConversationResponse employerView = buildConversationResponse(conversation, employerId);
+
+        messagingTemplate.convertAndSend(
+                JobsNowConstant.WS_TOPIC_DATA_CONVERSATION + candidateId, candidateView);
+        messagingTemplate.convertAndSend(
+                JobsNowConstant.WS_TOPIC_DATA_CONVERSATION + employerId, employerView);
     }
 
     private MessageResponse buildMessageResponse(Message msg) {

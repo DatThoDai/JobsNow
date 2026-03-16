@@ -23,9 +23,13 @@ public class Notification {
     @JoinColumn(name = "application_id")
     private Application application;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
+
+    private String type; // "SYSTEM", "CHAT"
+    private String senderName;
+    private Integer conversationId;
 
     private LocalDateTime createdAt;
 }

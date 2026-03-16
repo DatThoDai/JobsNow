@@ -25,6 +25,7 @@ public class CompanyMapper {
                 : Collections.emptyList();
         return CompanyDTO.builder()
                 .companyId(company.getCompanyId())
+                .ownerUserId(company.getUser() != null ? company.getUser().getUserId() : null)
                 .companyName(company.getCompanyName())
                 .logoUrl(company.getLogoUrl())
                 .bannerUrl(company.getBannerUrl())

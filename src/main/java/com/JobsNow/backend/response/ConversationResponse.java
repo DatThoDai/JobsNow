@@ -20,4 +20,6 @@ public class ConversationResponse {
     private String otherUserName;
     private String otherUserAvatar;
     private Integer unreadCount;
+    private Boolean isOtherUserOnline;
+    private LocalDateTime otherUserLastSeen;
 }

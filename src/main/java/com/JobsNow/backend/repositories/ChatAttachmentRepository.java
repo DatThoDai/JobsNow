@@ -5,4 +5,5 @@ import com.JobsNow.backend.entity.ChatAttachment;
 
 public interface ChatAttachmentRepository extends JpaRepository<ChatAttachment, Integer> {
     ChatAttachment findByMessage_MessageId(Integer messageId);
+    void deleteByMessage_MessageId(Integer messageId);
 }

@@ -15,8 +15,8 @@ public interface ConversationRepository extends JpaRepository<Conversation, Inte
     Optional<Conversation> findByCandidateUserAndEmployerUser(User candidate, User employer);
 
     @Query("SELECT COUNT(c) FROM Conversation c WHERE " +
-            "(c.candidateUser.userId = :userId AND c.unreadCountCandidate > 0) OR " +
-            "(c.employerUser.userId = :userId AND c.unreadCountEmployer > 0)")
+            "(c.candidateUser.userId = :userId AND c.unreadCountCandidate > 0 AND (c.deletedByCandidate = false OR c.deletedByCandidate IS NULL)) OR " +
+            "(c.employerUser.userId = :userId AND c.unreadCountEmployer > 0 AND (c.deletedByEmployer = false OR c.deletedByEmployer IS NULL))")
     Long countUnreadConversations(Integer userId);
 
     @Query("SELECT c.conversationId FROM Conversation c WHERE " +

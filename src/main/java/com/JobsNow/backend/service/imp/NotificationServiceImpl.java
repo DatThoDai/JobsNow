@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.JobsNow.backend.service.ConversationService;
+import org.springframework.context.annotation.Lazy;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +26,8 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final ApplicationRepository applicationRepository;
+    @Lazy
+    private final ConversationService conversationService;
 
     @Override
     public List<NotificationResponse> getNotificationsByUserId(Integer userId) {
@@ -61,12 +65,21 @@ public class NotificationServiceImpl implements NotificationService {
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
         noti.setIsRead(true);
         notificationRepository.save(noti);
+
+        if ("CHAT".equals(noti.getType()) && noti.getConversationId() != null) {
+            conversationService.markMessagesAsRead(noti.getConversationId(), noti.getUser().getUserId());
+        }
     }
 
     @Override
     public void markAllAsRead(Integer userId) {
         List<Notification> notifications = notificationRepository.findByUserUserIdOrderByCreatedAtDesc(userId);
-        notifications.forEach(n -> n.setIsRead(true));
+        notifications.forEach(n -> {
+            n.setIsRead(true);
+            if ("CHAT".equals(n.getType()) && n.getConversationId() != null) {
+                conversationService.markMessagesAsRead(n.getConversationId(), userId);
+            }
+        });
         notificationRepository.saveAll(notifications);
     }
 }

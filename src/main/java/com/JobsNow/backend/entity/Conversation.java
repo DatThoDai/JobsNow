@@ -24,6 +24,8 @@ public class Conversation {
     private User employerUser;
     private Integer unreadCountCandidate = 0;
     private Integer unreadCountEmployer = 0;
+    private Boolean deletedByCandidate = false;
+    private Boolean deletedByEmployer = false;
     private LocalDateTime lastMessageAt;
     private LocalDateTime createdAt;
 }

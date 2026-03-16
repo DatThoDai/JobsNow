@@ -57,6 +57,12 @@ public class ConversationController {
         return ResponseFactory.success(conversationService.findConversationId(candidateId, employerId));
     }
 
+    @DeleteMapping("/conversation/{conversationId}")
+    public ResponseEntity<?> deleteConversation(@PathVariable Integer conversationId, @RequestParam Integer userId) {
+        conversationService.deleteConversation(conversationId, userId);
+        return ResponseFactory.successMessage("Conversation deleted");
+    }
+
     // websocket
     @MessageMapping("/message/text")
     public void sendTextMessage(SendTextMessageRequest request) {

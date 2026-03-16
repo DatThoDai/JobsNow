@@ -17,4 +17,5 @@ public interface ConversationService {
     void markMessagesAsRead(Integer conversationId, Integer userId);
     Long countUnreadConversations(Integer userId);
     Integer findConversationId(Integer candidateId, Integer employerId);
+    void deleteConversation(Integer conversationId, Integer userId);
 }

@@ -18,5 +18,11 @@ public class NotificationResponse {
     private Boolean isRead;
     private Integer applicationId;
     private Integer userId;
+    
+    // For Chat notifications
+    private String type; // "SYSTEM", "CHAT", etc.
+    private String senderName;
+    private Integer conversationId;
+    
     private LocalDateTime createdAt;
 }

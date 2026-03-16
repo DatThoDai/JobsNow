@@ -11,6 +11,7 @@ import java.util.List;
 @Builder
 public class CompanyDTO {
     private Integer companyId;
+    private Integer ownerUserId;
     private String companyName;
     private String logoUrl;
     private String bannerUrl;
