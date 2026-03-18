@@ -25,11 +25,11 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
             "LOWER(j.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "LOWER(c.companyName) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
             "AND (:location IS NULL OR j.location IN :location) " +
-            "AND (:categoryId IS NULL OR j.category.id = :categoryId)")
+            "AND (:categoryIds IS NULL OR j.category.id IN :categoryIds)")
     List<Job> searchJobs(
             @Param("keyword") String keyword,
             @Param("location") List<String> location,
-            @Param("categoryId") Integer categoryId
+            @Param("categoryIds") List<Integer> categoryIds
     );
 
     Long countByIsApprovedFalse();

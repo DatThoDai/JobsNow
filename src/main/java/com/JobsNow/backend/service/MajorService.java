@@ -8,4 +8,5 @@ public interface MajorService {
     List<Major> getAllMajors();
     void addMajor(String majorName);
     void deleteMajor(Integer majorId);
+    void updateMajor(Integer majorId, String newName);
 }

@@ -14,7 +14,7 @@ public interface JobService {
     List<JobDTO> getJobsByCompanyId(Integer companyId);
     void updateJob(UpdateJobRequest request);
     void deleteJob(Integer jobId);
-    List<JobDTO> searchJobs(String keyword, List<String> location, Integer categoryId);
+    List<JobDTO> searchJobs(String keyword, List<String> location, List<Integer> categoryIds);
     void approveJob(Integer jobId);
     void rejectJob(RejectJobRequest request);
     /** Admin: all jobs (optional filter: pending | approved | rejected | all) */
