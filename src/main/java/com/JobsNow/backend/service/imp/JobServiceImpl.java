@@ -256,11 +256,14 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public List<JobDTO> searchJobs(String keyword, List<String> location, Integer categoryId) {
+    public List<JobDTO> searchJobs(String keyword, List<String> location, List<Integer> categoryIds) {
         if (location != null && location.isEmpty()) {
             location = null;
         }
-        List<Job> jobs = jobRepository.searchJobs(keyword, location, categoryId).stream()
+        if (categoryIds != null && categoryIds.isEmpty()) {
+            categoryIds = null;
+        }
+        List<Job> jobs = jobRepository.searchJobs(keyword, location, categoryIds).stream()
                 .filter(this::isJobAvailable)
                 .toList();
         return jobs.stream()

@@ -18,9 +18,15 @@ public class MajorController {
     }
 
     @PostMapping
-    public ResponseEntity<?> addMajor(String majorName) {
+    public ResponseEntity<?> addMajor(@RequestParam String majorName) {
         majorService.addMajor(majorName);
         return ResponseFactory.successMessage("Major added successfully");
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateMajor(@PathVariable Integer id, @RequestParam String majorName) {
+        majorService.updateMajor(id, majorName);
+        return ResponseFactory.successMessage("Major updated successfully");
     }
 
     @DeleteMapping("/{id}")

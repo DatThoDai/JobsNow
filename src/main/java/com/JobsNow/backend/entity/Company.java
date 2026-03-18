@@ -42,7 +42,7 @@ public class Company {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    private Integer jobPostCount;
+    private Integer jobPostCount = 0;
 
     @ManyToMany
     @JoinTable(
