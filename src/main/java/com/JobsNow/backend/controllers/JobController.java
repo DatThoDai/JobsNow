@@ -34,8 +34,8 @@ public class JobController {
     public ResponseEntity<?> searchJobs(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) List<String> location,
-            @RequestParam(required = false) Integer categoryId) {
-        return ResponseFactory.success(jobService.searchJobs(keyword, location, categoryId));
+            @RequestParam(required = false) List<Integer> categoryIds) {
+        return ResponseFactory.success(jobService.searchJobs(keyword, location, categoryIds));
     }
 
     @GetMapping("/company/{companyId}")
