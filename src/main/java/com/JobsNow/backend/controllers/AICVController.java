@@ -30,8 +30,10 @@ public class AICVController {
     }
 
     @PostMapping("/improve-cv/upload")
-    public ResponseEntity<?> improveCVFromFile(@RequestParam("file") MultipartFile file) {
-        return ResponseFactory.success(aiCVService.improveCVFromFile(file));
+    public ResponseEntity<?> improveCVFromFile(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "language", required = false) String language) {
+        return ResponseFactory.success(aiCVService.improveCVFromFile(file, language));
     }
 
     @PostMapping("/generate-cv")

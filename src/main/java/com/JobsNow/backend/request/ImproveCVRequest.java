@@ -7,4 +7,5 @@ import lombok.*;
 public class ImproveCVRequest {
     private String cvText;
     private Integer resumeId;
+    private String language;
 }

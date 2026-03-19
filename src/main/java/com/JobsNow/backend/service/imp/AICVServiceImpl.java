@@ -59,22 +59,33 @@ public class AICVServiceImpl implements AICVService {
         } else {
             throw new BadRequestException("Either cvText or resumeId is required");
         }
-        return analyzeCV(cvText);
+        return analyzeCV(cvText, request.getLanguage());
     }
 
     /**
      * Cải thiện CV từ file upload (PDF/DOCX)
      */
     @Override
-    public ImproveCVResponse improveCVFromFile(MultipartFile file) {
+    public ImproveCVResponse improveCVFromFile(MultipartFile file, String language) {
         String cvText = cvParserService.extractText(file);
-        return analyzeCV(cvText);
+        return analyzeCV(cvText, language);
     }
 
     /**
      * Core logic: gửi CV text cho AI phân tích
      */
-    private ImproveCVResponse analyzeCV(String cvText) {
+    private ImproveCVResponse analyzeCV(String cvText, String language) {
+        String normalizedLanguage = language == null ? "auto" : language.trim().toLowerCase();
+
+        String languageInstruction;
+        if ("vi".equals(normalizedLanguage)) {
+            languageInstruction = "Respond entirely in Vietnamese.";
+        } else if ("en".equals(normalizedLanguage)) {
+            languageInstruction = "Respond entirely in English.";
+        } else {
+            languageInstruction = "If the CV is written in Vietnamese, respond entirely in Vietnamese. If the CV is in English, respond in English.";
+        }
+
         String systemPrompt = """
         You are an expert ATS (Applicant Tracking System) specialist and professional CV reviewer.
         Analyze the provided CV thoroughly and return ONLY valid JSON (no markdown, no code blocks).
@@ -82,9 +93,13 @@ public class AICVServiceImpl implements AICVService {
         Be specific - mention exact phrases that need improvement.
         Do not hallucinate issues if the section already exists and is well-written.
         Score fairly: 0-40 = Poor, 41-60 = Average, 61-80 = Good, 81-100 = Excellent.
-        IMPORTANT: If the CV is written in Vietnamese, respond entirely in Vietnamese.
-        If the CV is in English, respond in English.
+        The field improvedSummary MUST be a rewritten and optimized version, never a verbatim copy.
+        Do not copy full sentences from the original summary; paraphrase with clearer ATS-focused wording.
+        If the original summary is already good, still provide a stronger rewritten version with better structure and impact.
+        IMPORTANT: %s
         """;
+
+        systemPrompt = systemPrompt.formatted(languageInstruction);
 
 
         String userPrompt = """
@@ -108,7 +123,7 @@ public class AICVServiceImpl implements AICVService {
           ],
           "missingKeywords": ["<keyword1>", "<keyword2>"],
           "extractedSkills": ["<skill1>", "<skill2>"],
-          "improvedSummary": "<rewritten professional summary>",
+                    "improvedSummary": "<rewritten professional summary, not copied verbatim from CV>",
           "actionItems": ["<priority action 1>", "<priority action 2>"]
         }
         """.formatted(cvText);
@@ -175,7 +190,12 @@ public class AICVServiceImpl implements AICVService {
         String inputData;
 
         if (request.getProfileId() != null) {
-            inputData = buildInputFromProfile(request.getProfileId(), request.getTargetJob(), request.getIndustry());
+            inputData = buildInputFromProfile(
+                    request.getProfileId(),
+                    request.getTargetJob(),
+                    request.getIndustry(),
+                    request.getAdditionalInfo()
+            );
         } else {
             inputData = buildInputFromRequest(request);
         }
@@ -195,7 +215,8 @@ public class AICVServiceImpl implements AICVService {
             - If a section has no data, return an empty array [] or empty string "".
             - Do NOT create fake company names, schools, certifications, or projects.
             - You MAY improve wording/phrasing of PROVIDED information.
-            - You MAY add estimated metrics ONLY if the user provided related context.
+            - STRICT FACTUAL MODE: do not infer, estimate, extrapolate, or assume any metrics, durations, tools, achievements, or responsibilities.
+            - If a number/metric is not explicitly provided, do not create it.
             """.formatted(lang);
 
 
@@ -206,11 +227,12 @@ public class AICVServiceImpl implements AICVService {
             
             IMPORTANT RULES:
             - Use action verbs appropriate for the industry (not just tech verbs)
-            - Add quantifiable achievements where possible (even estimated)
+            - Keep every statement strictly tied to explicit input facts
             - Make the summary 2-3 sentences highlighting key strengths
             - Categorize skills by type (Technical, Soft Skills, Tools, etc.)
             - Keep bullet points concise (1-2 lines each)
             - Do NOT invent information not provided
+            - Do NOT add inferred metrics or estimated numbers
             
             Return ONLY this JSON:
             {
@@ -262,7 +284,7 @@ public class AICVServiceImpl implements AICVService {
     /**
      * Build input text từ profile trong DB
      */
-    private String buildInputFromProfile(Integer profileId, String targetJob, String industry) {
+    private String buildInputFromProfile(Integer profileId, String targetJob, String industry, String additionalInfo) {
         JobSeekerProfile profile = jobSeekerProfileRepository.findById(profileId)
                 .orElseThrow(() -> new NotFoundException("Profile not found"));
 
@@ -272,6 +294,9 @@ public class AICVServiceImpl implements AICVService {
 
         if (targetJob != null) sb.append("Target Job: ").append(targetJob).append("\n");
         if (industry != null) sb.append("Industry: ").append(industry).append("\n");
+        if (additionalInfo != null && !additionalInfo.isBlank()) {
+            sb.append("Additional Information:\n").append(additionalInfo.trim()).append("\n");
+        }
 
         // Skills
         if (profile.getJobSeekerSkills() != null && !profile.getJobSeekerSkills().isEmpty()) {
@@ -340,6 +365,9 @@ public class AICVServiceImpl implements AICVService {
         if (req.getTitle() != null) sb.append("Title: ").append(req.getTitle()).append("\n");
         if (req.getTargetJob() != null) sb.append("Target Job: ").append(req.getTargetJob()).append("\n");
         if (req.getIndustry() != null) sb.append("Industry: ").append(req.getIndustry()).append("\n");
+        if (req.getAdditionalInfo() != null && !req.getAdditionalInfo().isBlank()) {
+            sb.append("Additional Information:\n").append(req.getAdditionalInfo().trim()).append("\n");
+        }
 
         if (req.getSkills() != null) {
             sb.append("\nSkills: ").append(String.join(", ", req.getSkills())).append("\n");

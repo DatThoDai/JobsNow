@@ -13,6 +13,7 @@ public class GenerateCVRequest {
     private String title;
     private String targetJob;
     private String industry;
+    private String additionalInfo;
     private List<String> skills;
     private List<WorkExpInput> experiences;
     private List<EduInput> educations;

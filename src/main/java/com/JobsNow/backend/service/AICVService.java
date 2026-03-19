@@ -9,7 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 public interface AICVService {
     ImproveCVResponse improveCVFromRequest(ImproveCVRequest request);
 
-    ImproveCVResponse improveCVFromFile(MultipartFile file);
+    ImproveCVResponse improveCVFromFile(MultipartFile file, String language);
 
     GenerateCVResponse generateCV(GenerateCVRequest request);
 }

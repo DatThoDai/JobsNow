@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/jobsnow_db
+    url: jdbc:postgresql://localhost:5432/jobnexus_db
     username: root
     password: admin123
     driver-class-name: org.postgresql.Driver
