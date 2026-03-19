@@ -11,8 +11,10 @@ import com.JobsNow.backend.repositories.*;
 import com.JobsNow.backend.request.CreateJobRequest;
 import com.JobsNow.backend.request.RejectJobRequest;
 import com.JobsNow.backend.request.UpdateJobRequest;
+import com.JobsNow.backend.service.EmailService;
 import com.JobsNow.backend.service.JobService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class JobServiceImpl implements JobService {
     private final JobRepository jobRepository;
     private final CompanyRepository companyRepository;
@@ -31,6 +34,7 @@ public class JobServiceImpl implements JobService {
     private final SkillRepository skillRepository;
     private final JobSkillRepository jobSkillRepository;
     private final MajorRepository majorRepository;
+    private final EmailService emailService;
     @Transactional
     @Override
     public void createJob(CreateJobRequest request) {
@@ -241,8 +245,10 @@ public class JobServiceImpl implements JobService {
         if (request.getThumbnailUrl() != null) {
             job.setThumbnailUrl(request.getThumbnailUrl());
         }
-        job.setIsPending(true);
-        job.setIsApproved(false);
+        if (!Boolean.TRUE.equals(job.getIsApproved())) {
+            job.setIsPending(true);
+            job.setIsApproved(false);
+        }
         jobRepository.save(job);
     }
 
@@ -280,6 +286,14 @@ public class JobServiceImpl implements JobService {
         job.setIsActive(true);
         job.setNote(null);
         jobRepository.save(job);
+        try {
+            String toEmail = job.getCompany().getUser().getEmail();
+            if (toEmail != null && !toEmail.isBlank()) {
+                emailService.sendJobPostApprovedEmail(toEmail, job.getTitle(), job.getCompany().getCompanyName());
+            }
+        } catch (Exception e) {
+            log.error("Failed to send job approved email, jobId={}", jobId, e);
+        }
     }
 
     @Override
@@ -291,6 +305,14 @@ public class JobServiceImpl implements JobService {
         job.setIsActive(false);
         job.setNote(request.getReason());
         jobRepository.save(job);
+        try {
+            String toEmail = job.getCompany().getUser().getEmail();
+            if (toEmail != null && !toEmail.isBlank()) {
+                emailService.sendJobPostRejectedEmail(toEmail, job.getTitle(), job.getCompany().getCompanyName(), request.getReason());
+            }
+        } catch (Exception e) {
+            log.error("Failed to send job rejected email, jobId={}", request.getJobId(), e);
+        }
     }
 
     @Override

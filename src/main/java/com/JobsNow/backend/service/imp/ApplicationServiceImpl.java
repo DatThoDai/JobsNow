@@ -17,7 +17,9 @@ import com.JobsNow.backend.response.ApplicationDetailResponse;
 import com.JobsNow.backend.response.ApplicationOfJobResponse;
 import com.JobsNow.backend.response.NotificationResponse;
 import com.JobsNow.backend.service.ApplicationService;
+import com.JobsNow.backend.service.EmailService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ApplicationServiceImpl implements ApplicationService {
     private final ApplicationRepository applicationRepository;
     private final JobRepository jobRepository;
@@ -37,6 +40,7 @@ public class ApplicationServiceImpl implements ApplicationService {
     private final ApplicationStatusHistoryRepository applicationStatusHistoryRepository;
     private final NotificationServiceImpl notificationService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final EmailService emailService;
     @Override
     @Transactional
     public void applyForJob(ApplicationRequest request) {
@@ -125,6 +129,8 @@ public class ApplicationServiceImpl implements ApplicationService {
             messagingTemplate.convertAndSend(
                     JobsNowConstant.WS_TOPIC_NOTIFICATION + jobSeekerId,
                     notification);
+
+            sendApplicationStatusEmail(application, newStatus);
         }catch (IllegalArgumentException e){
             throw new BadRequestException("Invalid application status");
         }
@@ -223,6 +229,24 @@ public class ApplicationServiceImpl implements ApplicationService {
         dto.setLabels(results.stream().map(r -> (String) r[0]).collect(Collectors.toList()));
         dto.setCounts(results.stream().map(r -> ((Number) r[1]).longValue()).collect(Collectors.toList()));
         return dto;
+    }
+
+    private void sendApplicationStatusEmail(Application application, ApplicationStatus status) {
+        String toEmail = null;
+        try {
+            toEmail = application.getJobSeekerProfile().getUser().getEmail();
+            if (toEmail == null || toEmail.isBlank()) return;
+            String candidateName = application.getJobSeekerProfile().getUser().getFullName();
+            String jobTitle = application.getJob().getTitle();
+            String companyName = application.getJob().getCompany().getCompanyName();
+            if (status == ApplicationStatus.HIRED) {
+                emailService.sendApplicationApprovedEmail(toEmail, candidateName, jobTitle, companyName);
+            } else if (status == ApplicationStatus.REJECTED) {
+                emailService.sendApplicationRejectedEmail(toEmail, candidateName, jobTitle, companyName);
+            }
+        } catch (Exception e) {
+            log.error("Failed to send application status email to {}, applicationId={}, status={}", toEmail, application.getApplicationId(), status, e);
+        }
     }
 
     private void saveStatusHistory(Application application, ApplicationStatus status) {
