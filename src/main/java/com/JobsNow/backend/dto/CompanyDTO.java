@@ -19,6 +19,8 @@ public class CompanyDTO {
     private String website;
     private String description;
     private String address;
+    private String nameUserContact;
+    private String tutorialApply;
     private String companySize;
     private List<Integer> industryIds;
     private List<IndustryDTO> industries;
@@ -29,4 +31,6 @@ public class CompanyDTO {
     private String phone;
 
     private List<CompanyImageDTO> images;
+
+    private List<SocialDTO> socials;
 }

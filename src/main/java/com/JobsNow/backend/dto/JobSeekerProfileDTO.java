@@ -23,4 +23,5 @@ public class JobSeekerProfileDTO {
     private LocalDate dob;
     private List<JobSeekerSkillDTO> skills;
     private List<ResumeDTO> resumes;
+    private List<SocialDTO> socials;
 }

@@ -40,6 +40,17 @@ public class JobDTO {
     private Integer categoryId;
     private String categoryName;
 
+    private String applicationLanguage;
+    private String genderRequirement;
+    private Integer minAge;
+    private Integer maxAge;
+
+    /** Denormalized from company for job detail */
+    private String contactPersonName;
+    private String contactTutorial;
+    private String companyAddress;
+    private List<SocialDTO> companySocials;
+
     private List<JobSkillDTO> jobSkills;
     private List<Major> majors;
 }

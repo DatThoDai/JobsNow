@@ -19,4 +19,15 @@ public class UpdateCompanyRequest {
     private String companySize;
     @JsonProperty("industry_ids")
     private List<Integer> industryIds;
+
+    @JsonProperty("name_user_contact")
+    private String nameUserContact;
+
+    @JsonProperty("tutorial_apply")
+    private String tutorialApply;
+
+    private List<SocialLinkItem> socials;
+
+    @JsonProperty("thumbnail_image_urls")
+    private List<String> thumbnailImageUrls;
 }

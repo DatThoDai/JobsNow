@@ -2,16 +2,29 @@ package com.JobsNow.backend.repositories;
 
 import com.JobsNow.backend.entity.Job;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface JobRepository extends JpaRepository<Job, Integer> {
+    @Query("SELECT j FROM Job j JOIN FETCH j.company c LEFT JOIN FETCH c.socials WHERE j.jobId = :id")
+    Optional<Job> findByIdWithCompanyAndSocials(@Param("id") Integer id);
+
     List<Job> findByCompany_CompanyId(Integer companyId);
+
+    @Query("SELECT j FROM Job j JOIN FETCH j.company c WHERE j.category.id = :categoryId "
+            + "AND j.jobId <> :excludeId AND j.isActive = true AND j.isApproved = true "
+            + "AND j.isDeleted = false AND j.isExpired = false ORDER BY j.postedAt DESC")
+    List<Job> findRelatedByCategory(
+            @Param("categoryId") Integer categoryId,
+            @Param("excludeId") Integer excludeId,
+            Pageable pageable);
 
     @Query("SELECT j FROM Job j WHERE j.category.id = :categoryId AND j.isActive = true AND j.isDeleted = false")
     List<Job> findByCategoryId(@Param("categoryId") Integer categoryId);

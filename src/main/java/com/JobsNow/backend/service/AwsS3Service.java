@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -68,5 +69,25 @@ public class AwsS3Service {
                 .signatureDuration(Duration.ofMinutes(3))
                 .putObjectRequest(putObjectRequest));
         return presignedRequest.url().toString();
+    }
+
+    public String uploadMultipartImage(MultipartFile file, String folderPrefix) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File is required");
+        }
+        String originalFileName = file.getOriginalFilename();
+        if (originalFileName == null || !originalFileName.contains(".")) {
+            throw new IllegalArgumentException("Invalid file name");
+        }
+        int dot = originalFileName.lastIndexOf(".");
+        String baseName = originalFileName.substring(0, dot);
+        String extension = originalFileName.substring(dot);
+        String normalizedFolder = folderPrefix.endsWith("/") ? folderPrefix : folderPrefix + "/";
+        String s3Key = normalizedFolder + baseName + "_" + System.currentTimeMillis() + extension;
+        try {
+            return uploadFileToS3(file.getInputStream(), s3Key, file.getContentType());
+        } catch (IOException e) {
+            throw new RuntimeException("Upload file failed", e);
+        }
     }
 }
