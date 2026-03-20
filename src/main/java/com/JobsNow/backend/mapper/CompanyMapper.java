@@ -3,6 +3,7 @@ package com.JobsNow.backend.mapper;
 import com.JobsNow.backend.dto.CompanyDTO;
 import com.JobsNow.backend.dto.CompanyImageDTO;
 import com.JobsNow.backend.dto.IndustryDTO;
+import com.JobsNow.backend.dto.SocialDTO;
 import com.JobsNow.backend.entity.Company;
 import org.springframework.stereotype.Component;
 
@@ -33,6 +34,8 @@ public class CompanyMapper {
                 .website(company.getWebsite())
                 .description(company.getDescription())
                 .address(company.getAddress())
+                .nameUserContact(company.getNameUserContact())
+                .tutorialApply(company.getTutorialApply())
                 .companySize(company.getCompanySize())
                 .industryIds(industryIds)
                 .industries(industries)
@@ -46,6 +49,16 @@ public class CompanyMapper {
                                 .imageId(img.getImageId())
                                 .imageUrl(img.getImageUrl())
                                 .type(img.getImageType().name())
+                                .build())
+                        .collect(Collectors.toList())
+                        : Collections.emptyList())
+                .socials(company.getSocials() != null && !company.getSocials().isEmpty()
+                        ? company.getSocials().stream()
+                        .map(s -> SocialDTO.builder()
+                                .id(s.getId())
+                                .platform(s.getPlatform().name())
+                                .url(s.getUrl())
+                                .logoUrl(s.getLogoUrl())
                                 .build())
                         .collect(Collectors.toList())
                         : Collections.emptyList())

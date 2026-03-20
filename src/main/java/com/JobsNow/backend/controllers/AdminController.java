@@ -4,12 +4,17 @@ import com.JobsNow.backend.dto.DashboardStatsDTO;
 import com.JobsNow.backend.repositories.ApplicationRepository;
 import com.JobsNow.backend.repositories.JobRepository;
 import com.JobsNow.backend.repositories.UserRepository;
+import com.JobsNow.backend.request.UpdateAdminUserRequest;
 import com.JobsNow.backend.response.ResponseFactory;
+import com.JobsNow.backend.service.AdminUserService;
 import com.JobsNow.backend.service.ApplicationService;
 import com.JobsNow.backend.service.JobService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,6 +28,19 @@ public class AdminController {
     private final UserRepository userRepository;
     private final ApplicationService applicationService;
     private final JobService jobService;
+    private final AdminUserService adminUserService;
+
+    @GetMapping("/users")
+    public ResponseEntity<?> listUsers() {
+        return ResponseFactory.success(adminUserService.listUsers());
+    }
+
+    @PutMapping("/users/{userId}")
+    public ResponseEntity<?> updateUser(
+            @PathVariable Integer userId,
+            @RequestBody UpdateAdminUserRequest request) {
+        return ResponseFactory.success(adminUserService.updateUser(userId, request));
+    }
 
     @GetMapping("/jobs")
     public ResponseEntity<?> getJobsForAdmin(@RequestParam(required = false) String status) {

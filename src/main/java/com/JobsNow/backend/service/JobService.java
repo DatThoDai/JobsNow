@@ -10,6 +10,10 @@ import java.util.List;
 public interface JobService {
     void createJob(CreateJobRequest request);
     JobDTO getJobById(Integer jobId);
+
+    /** Same category as job, excluding the job itself */
+    List<JobDTO> getRelatedJobs(Integer jobId, int limit);
+
     List<JobDTO> getAllJobs();
     List<JobDTO> getJobsByCompanyId(Integer companyId);
     void updateJob(UpdateJobRequest request);

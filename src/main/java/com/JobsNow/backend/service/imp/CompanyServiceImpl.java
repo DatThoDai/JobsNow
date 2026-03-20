@@ -5,8 +5,10 @@ import com.JobsNow.backend.dto.CompanyImageDTO;
 import com.JobsNow.backend.entity.Company;
 import com.JobsNow.backend.entity.CompanyImage;
 import com.JobsNow.backend.entity.Industry;
+import com.JobsNow.backend.entity.Social;
 import com.JobsNow.backend.entity.User;
 import com.JobsNow.backend.entity.enums.CompanyImageType;
+import com.JobsNow.backend.entity.enums.SocialPlatform;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.CompanyMapper;
@@ -15,11 +17,13 @@ import com.JobsNow.backend.repositories.CompanyRepository;
 import com.JobsNow.backend.repositories.IndustryRepository;
 import com.JobsNow.backend.repositories.UserRepository;
 import com.JobsNow.backend.request.CreateCompanyRequest;
+import com.JobsNow.backend.request.SocialLinkItem;
 import com.JobsNow.backend.request.UpdateCompanyRequest;
 import com.JobsNow.backend.service.AwsS3Service;
 import com.JobsNow.backend.service.CompanyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -37,6 +41,9 @@ public class CompanyServiceImpl implements CompanyService {
     private final UserRepository userRepository;
     private final IndustryRepository industryRepository;
     private final AwsS3Service awsS3Service;
+
+    @Value("${aws.s3.endpointUrl}")
+    private String s3PublicBaseUrl;
     @Override
     public List<CompanyDTO> getAllCompanies() {
         List<Company> companies = companyRepository.findAll();
@@ -88,6 +95,13 @@ public class CompanyServiceImpl implements CompanyService {
         company.setCompanySize(request.getCompanySize());
         company.setIsVerified(false);
         company.setJobPostCount(0);
+        if (request.getNameUserContact() != null) {
+            company.setNameUserContact(request.getNameUserContact());
+        }
+        if (request.getTutorialApply() != null) {
+            company.setTutorialApply(request.getTutorialApply());
+        }
+        replaceCompanySocialsFromRequest(company, request.getSocials());
 
         List<Integer> industryIds = request.getIndustryIds() != null ? request.getIndustryIds() : Collections.emptyList();
         if (!industryIds.isEmpty()) {
@@ -115,6 +129,15 @@ public class CompanyServiceImpl implements CompanyService {
         }
 
         companyRepository.save(company);
+
+        if (request.getThumbnailImageUrls() != null && !request.getThumbnailImageUrls().isEmpty()) {
+            for (String url : request.getThumbnailImageUrls()) {
+                if (url != null && !url.isBlank()) {
+                    addCompanyImageFromUrl(company.getCompanyId(), url.trim());
+                }
+            }
+        }
+
         return CompanyMapper.toCompanyDTO(company);
     }
 
@@ -152,6 +175,13 @@ public class CompanyServiceImpl implements CompanyService {
         if(request.getCompanySize() != null){
             company.setCompanySize(request.getCompanySize());
         }
+        if (request.getNameUserContact() != null) {
+            company.setNameUserContact(request.getNameUserContact());
+        }
+        if (request.getTutorialApply() != null) {
+            company.setTutorialApply(request.getTutorialApply());
+        }
+        replaceCompanySocialsFromRequest(company, request.getSocials());
         if (request.getIndustryIds() != null && !request.getIndustryIds().isEmpty()) {
             List<Industry> industryList = new ArrayList<>();
             for (Integer id : request.getIndustryIds()) {
@@ -173,6 +203,13 @@ public class CompanyServiceImpl implements CompanyService {
             for (MultipartFile imageFile : thumbnailFiles) {
                 if (imageFile != null && !imageFile.isEmpty()) {
                     addCompanyImage(companyId, imageFile, "OTHER");
+                }
+            }
+        }
+        if (request.getThumbnailImageUrls() != null && !request.getThumbnailImageUrls().isEmpty()) {
+            for (String url : request.getThumbnailImageUrls()) {
+                if (url != null && !url.isBlank()) {
+                    addCompanyImageFromUrl(companyId, url.trim());
                 }
             }
         }
@@ -266,11 +303,68 @@ public class CompanyServiceImpl implements CompanyService {
         return getCompanyImages(companyId);
     }
 
+    private boolean isTrustedS3AssetUrl(String url) {
+        if (url == null || url.isBlank() || s3PublicBaseUrl == null || s3PublicBaseUrl.isBlank()) {
+            return false;
+        }
+        String u = url.trim();
+        String base = s3PublicBaseUrl.endsWith("/")
+                ? s3PublicBaseUrl.substring(0, s3PublicBaseUrl.length() - 1)
+                : s3PublicBaseUrl;
+        return u.startsWith(base) || u.startsWith(s3PublicBaseUrl);
+    }
+
+    private void addCompanyImageFromUrl(Integer companyId, String imageUrl) {
+        if (!isTrustedS3AssetUrl(imageUrl)) {
+            throw new BadRequestException("Invalid image URL");
+        }
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new NotFoundException("Company not found"));
+        int currentCount = companyImageRepository.countByCompany_CompanyId(companyId);
+        if (currentCount >= 10) {
+            throw new BadRequestException("Maximum of 5 images allowed per company");
+        }
+        CompanyImage image = CompanyImage.builder()
+                .company(company)
+                .imageUrl(imageUrl)
+                .imageType(CompanyImageType.OTHER)
+                .build();
+        companyImageRepository.save(image);
+    }
+
     @Override
     public void deleteCompanyImage(Integer imageId) {
         CompanyImage image = companyImageRepository.findById(imageId)
                 .orElseThrow(() -> new NotFoundException("Company image not found"));
         companyImageRepository.delete(image);
+    }
+
+    private void replaceCompanySocialsFromRequest(Company company, List<SocialLinkItem> items) {
+        if (items == null) {
+            return;
+        }
+        if (company.getSocials() == null) {
+            company.setSocials(new ArrayList<>());
+        } else {
+            company.getSocials().clear();
+        }
+        for (SocialLinkItem item : items) {
+            if (item.getUrl() == null || item.getUrl().isBlank()) {
+                continue;
+            }
+            SocialPlatform platform;
+            try {
+                platform = SocialPlatform.valueOf(item.getPlatform().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid social platform: " + item.getPlatform());
+            }
+            Social s = new Social();
+            s.setPlatform(platform);
+            s.setUrl(item.getUrl().trim());
+            s.setLogoUrl(item.getLogoUrl());
+            s.setCompany(company);
+            company.getSocials().add(s);
+        }
     }
 
     @Override

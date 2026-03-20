@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
@@ -17,4 +18,7 @@ public class UpdateProfileRequest {
     private String bio;
     private String address;
     private LocalDate dob;
+
+    /** When present (including empty list), replaces all job seeker social links */
+    private List<SocialLinkItem> socials;
 }

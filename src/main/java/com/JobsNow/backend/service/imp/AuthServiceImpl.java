@@ -4,6 +4,7 @@ import com.JobsNow.backend.entity.Company;
 import com.JobsNow.backend.entity.JobSeekerProfile;
 import com.JobsNow.backend.entity.Role;
 import com.JobsNow.backend.entity.User;
+import com.JobsNow.backend.entity.UserAccountStatus;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.repositories.CompanyRepository;
 import com.JobsNow.backend.repositories.JobSeekerProfileRepository;
@@ -140,6 +141,7 @@ public class AuthServiceImpl implements AuthService {
         if(!passwordEncoder.matches(loginRequest.getPassword(), user.getPasswordHash())){
             throw new BadRequestException("Invalid email or password");
         }
+        assertAccountActive(user);
 
         String token = jwtHelper.generateToken(user.getEmail());
         AuthResponse response = new AuthResponse();
@@ -270,6 +272,7 @@ public class AuthServiceImpl implements AuthService {
         loginOtpRedisService.deleteOtp(email);
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BadRequestException("User not found"));
+        assertAccountActive(user);
         String token = jwtHelper.generateToken(user.getEmail());
         AuthResponse response = new AuthResponse();
         response.setToken(token);
@@ -323,7 +326,15 @@ public class AuthServiceImpl implements AuthService {
         return buildAuthResponse(user);
     }
 
+    private void assertAccountActive(User user) {
+        UserAccountStatus s = user.getStatus() != null ? user.getStatus() : UserAccountStatus.ACTIVE;
+        if (s == UserAccountStatus.DISABLED) {
+            throw new BadRequestException("Tài khoản đã bị vô hiệu hóa.");
+        }
+    }
+
     private AuthResponse buildAuthResponse(User user) {
+        assertAccountActive(user);
         String token = jwtHelper.generateToken(user.getEmail());
         AuthResponse response = new AuthResponse();
         response.setToken(token);
@@ -352,6 +363,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse getCurrentUser(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BadRequestException("User not found"));
+        assertAccountActive(user);
         AuthResponse response = new AuthResponse();
         response.setEmail(user.getEmail());
         response.setFullName(user.getFullName());

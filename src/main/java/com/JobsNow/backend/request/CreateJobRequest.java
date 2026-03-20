@@ -59,6 +59,15 @@ public class CreateJobRequest {
     private String thumbnailUrl;
     private Boolean isActive;
 
+    /** Application language for CV (enum name, e.g. VIETNAMESE) */
+    private String applicationLanguage;
+
+    private String genderRequirement;
+
+    private Integer minAge;
+
+    private Integer maxAge;
+
     @Data
     public static class JobSkillItem {
         private Integer skillId;
