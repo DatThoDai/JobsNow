@@ -12,8 +12,10 @@ import com.JobsNow.backend.request.CreateResumeRequest;
 import com.JobsNow.backend.request.InitResumeRequest;
 import com.JobsNow.backend.request.UpdateResumeRequest;
 import com.JobsNow.backend.service.AwsS3Service;
+import com.JobsNow.backend.service.CVParserService;
 import com.JobsNow.backend.service.ResumeService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -22,11 +24,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ResumeServiceImpl implements ResumeService {
     private final ResumeRepository resumeRepository;
     private final JobSeekerProfileRepository jobSeekerProfileRepository;
     private final AwsS3Service awsS3Service;
+    private final CVParserService cvParserService;
     @Override
     public void createResume(Integer profileId, CreateResumeRequest request) {
         JobSeekerProfile profile = jobSeekerProfileRepository.findById(profileId)
@@ -43,11 +47,18 @@ public class ResumeServiceImpl implements ResumeService {
             String baseName = resumeFileName.substring(0, resumeFileName.lastIndexOf("."));
             String s3Key = "resumes/" + baseName + "_" + System.currentTimeMillis() + extension;
             String s3Url = awsS3Service.uploadFileToS3(inputStream, s3Key, contentType);
+            String extractedText = null;
+            try {
+                extractedText = cvParserService.extractText(request.getResume());
+            } catch (Exception e) {
+                log.warn("Failed to extract text for uploaded resume {}: {}", request.getResumeName(), e.getMessage());
+            }
 
             Resume resume = new Resume();
             resume.setJobSeekerProfile(profile);
             resume.setResumeName(request.getResumeName());
             resume.setResumeUrl(s3Url);
+            resume.setExtractedText(extractedText);
             resume.setUploadedAt(LocalDateTime.now());
             resume.setIsDeleted(false);
             resume.setIsPrimary(false);

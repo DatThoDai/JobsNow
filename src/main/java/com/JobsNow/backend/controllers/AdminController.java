@@ -1,6 +1,7 @@
 package com.JobsNow.backend.controllers;
 
 import com.JobsNow.backend.dto.DashboardStatsDTO;
+import com.JobsNow.backend.dto.AdminUserDTO;
 import com.JobsNow.backend.repositories.ApplicationRepository;
 import com.JobsNow.backend.repositories.JobRepository;
 import com.JobsNow.backend.repositories.UserRepository;
@@ -9,10 +10,15 @@ import com.JobsNow.backend.service.ApplicationService;
 import com.JobsNow.backend.service.JobService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/admin")
@@ -27,6 +33,34 @@ public class AdminController {
     @GetMapping("/jobs")
     public ResponseEntity<?> getJobsForAdmin(@RequestParam(required = false) String status) {
         return ResponseFactory.success(jobService.getAllJobsForAdmin(status));
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<?> getUsersForAdmin() {
+        List<AdminUserDTO> users = userRepository.findAll().stream()
+                .map(user -> AdminUserDTO.builder()
+                        .userId(user.getUserId())
+                        .email(user.getEmail())
+                        .fullName(user.getFullName())
+                        .phone(user.getPhone())
+                        .role(user.getRole() != null ? user.getRole().getRoleName() : null)
+                        .isVerified(user.getIsVerified())
+                        .createdAt(user.getCreatedAt())
+                        .build())
+                .toList();
+        return ResponseFactory.success(users);
+    }
+
+    @PutMapping("/jobs/{jobId}/unpublish")
+    public ResponseEntity<?> unpublishJobByAdmin(@PathVariable Integer jobId) {
+        jobService.unpublishJobByAdmin(jobId);
+        return ResponseFactory.successMessage("Job unpublished successfully");
+    }
+
+    @DeleteMapping("/jobs/{jobId}")
+    public ResponseEntity<?> deleteJobByAdmin(@PathVariable Integer jobId) {
+        jobService.deleteJob(jobId);
+        return ResponseFactory.successMessage("Job deleted successfully");
     }
 
     @GetMapping("/stats")

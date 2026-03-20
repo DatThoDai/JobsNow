@@ -28,14 +28,18 @@ public class WebSocketEventListener {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String userIdStr = (String) headerAccessor.getSessionAttributes().get("userId");
         if (userIdStr != null) {
-            log.info("User Connected: {}", userIdStr);
-            Long activeSessions = redisTemplate.opsForHash().increment("user:sessions", userIdStr, 1);
-            if (activeSessions == 1) {
-                redisTemplate.opsForSet().add("online_users", userIdStr);
-                Map<String, Object> statusMap = new HashMap<>();
-                statusMap.put("userId", Integer.parseInt(userIdStr));
-                statusMap.put("isOnline", true);
-                messagingTemplate.convertAndSend("/topic/user.status", (Object) statusMap);
+            try {
+                log.info("User Connected: {}", userIdStr);
+                Long activeSessions = redisTemplate.opsForHash().increment("user:sessions", userIdStr, 1);
+                if (activeSessions == 1) {
+                    redisTemplate.opsForSet().add("online_users", userIdStr);
+                    Map<String, Object> statusMap = new HashMap<>();
+                    statusMap.put("userId", Integer.parseInt(userIdStr));
+                    statusMap.put("isOnline", true);
+                    messagingTemplate.convertAndSend("/topic/user.status", (Object) statusMap);
+                }
+            } catch (Exception e) {
+                log.warn("Redis error during connect: {}", e.getMessage());
             }
         }
     }
@@ -45,18 +49,22 @@ public class WebSocketEventListener {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String userIdStr = (String) headerAccessor.getSessionAttributes().get("userId");
         if (userIdStr != null) {
-            log.info("User Disconnected: {}", userIdStr);
-            Long activeSessions = redisTemplate.opsForHash().increment("user:sessions", userIdStr, -1);
-            if (activeSessions <= 0) {
-                redisTemplate.opsForHash().delete("user:sessions", userIdStr);
-                redisTemplate.opsForSet().remove("online_users", userIdStr);
-                redisTemplate.opsForValue().set("user:last_seen:" + userIdStr, LocalDateTime.now().toString(), Duration.ofDays(7));
+            try {
+                log.info("User Disconnected: {}", userIdStr);
+                Long activeSessions = redisTemplate.opsForHash().increment("user:sessions", userIdStr, -1);
+                if (activeSessions <= 0) {
+                    redisTemplate.opsForHash().delete("user:sessions", userIdStr);
+                    redisTemplate.opsForSet().remove("online_users", userIdStr);
+                    redisTemplate.opsForValue().set("user:last_seen:" + userIdStr, LocalDateTime.now().toString(), Duration.ofDays(7));
 
-                Map<String, Object> statusMap = new HashMap<>();
-                statusMap.put("userId", Integer.parseInt(userIdStr));
-                statusMap.put("isOnline", false);
-                statusMap.put("lastSeen", LocalDateTime.now().toString());
-                messagingTemplate.convertAndSend("/topic/user.status", (Object) statusMap);
+                    Map<String, Object> statusMap = new HashMap<>();
+                    statusMap.put("userId", Integer.parseInt(userIdStr));
+                    statusMap.put("isOnline", false);
+                    statusMap.put("lastSeen", LocalDateTime.now().toString());
+                    messagingTemplate.convertAndSend("/topic/user.status", (Object) statusMap);
+                }
+            } catch (Exception e) {
+                log.warn("Ignoring Redis error during disconnect (likely application shutdown): {}", e.getMessage());
             }
         }
     }

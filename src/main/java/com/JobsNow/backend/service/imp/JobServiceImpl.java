@@ -100,7 +100,6 @@ public class JobServiceImpl implements JobService {
                 jobSkill.setLevel(skillItem.getLevel());
                 jobSkills.add(jobSkill);
             }
-            jobSkillRepository.saveAll(jobSkills);
             savedJob.setJobSkills(jobSkills);
         }
 
@@ -112,8 +111,8 @@ public class JobServiceImpl implements JobService {
                 majors.add(major);
             }
             savedJob.setMajors(majors);
-            jobRepository.save(savedJob);
         }
+        jobRepository.save(savedJob);
         int currentCount = company.getJobPostCount() != null ? company.getJobPostCount(): 0;
         company.setJobPostCount(currentCount + 1);
         companyRepository.save(company);
@@ -220,7 +219,6 @@ public class JobServiceImpl implements JobService {
                     jobSkill.setLevel(item.getLevel());
                     newJobSkills.add(jobSkill);
                 }
-                jobSkillRepository.saveAll(newJobSkills);
                 job.setJobSkills(newJobSkills);
             } else {
                 job.setJobSkills(new ArrayList<>());
@@ -262,14 +260,30 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public List<JobDTO> searchJobs(String keyword, List<String> location, List<Integer> categoryIds) {
-        if (location != null && location.isEmpty()) {
-            location = null;
-        }
+    public void unpublishJobByAdmin(Integer jobId) {
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new NotFoundException("Job not found"));
+        job.setIsActive(false);
+        job.setIsPending(false);
+        job.setIsApproved(false);
+        jobRepository.save(job);
+    }
+
+    @Override
+    public List<JobDTO> searchJobs(String keyword, String location, String jobType, List<Integer> categoryIds) {
         if (categoryIds != null && categoryIds.isEmpty()) {
             categoryIds = null;
         }
-        List<Job> jobs = jobRepository.searchJobs(keyword, location, categoryIds).stream()
+        JobType parsedJobType = null;
+        if (jobType != null && !jobType.isBlank()) {
+            try {
+                parsedJobType = JobType.valueOf(jobType.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid jobType");
+            }
+        }
+
+        List<Job> jobs = jobRepository.searchJobs(keyword, location, parsedJobType, categoryIds).stream()
                 .filter(this::isJobAvailable)
                 .toList();
         return jobs.stream()
