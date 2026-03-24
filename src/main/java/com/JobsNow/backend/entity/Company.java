@@ -34,6 +34,12 @@ public class Company {
 
     private String address;
 
+    @Column(name = "name_user_contact")
+    private String nameUserContact;
+
+    @Column(name = "tutorial_apply", columnDefinition = "TEXT")
+    private String tutorialApply;
+
     private String companySize;
 
     private Boolean isVerified = false;
@@ -54,4 +60,7 @@ public class Company {
 
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CompanyImage> images;
+
+    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Social> socials;
 }

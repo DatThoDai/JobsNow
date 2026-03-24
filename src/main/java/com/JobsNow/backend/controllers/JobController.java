@@ -25,9 +25,16 @@ public class JobController {
         return ResponseFactory.success( jobService.getAllJobs());
     }
 
-    @GetMapping ("/{jobId}")
+    @GetMapping("/{jobId}/related")
+    public ResponseEntity<?> getRelatedJobs(
+            @PathVariable Integer jobId,
+            @RequestParam(defaultValue = "8") int limit) {
+        return ResponseFactory.success(jobService.getRelatedJobs(jobId, limit));
+    }
+
+    @GetMapping("/{jobId}")
     public ResponseEntity<?> getJobById(@PathVariable Integer jobId) {
-        return ResponseFactory.success( jobService.getJobById(jobId));
+        return ResponseFactory.success(jobService.getJobById(jobId));
     }
 
     @GetMapping("/searchJobs")

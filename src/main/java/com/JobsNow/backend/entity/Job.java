@@ -1,6 +1,8 @@
 package com.JobsNow.backend.entity;
 
+import com.JobsNow.backend.entity.enums.ApplicationLanguage;
 import com.JobsNow.backend.entity.enums.EducationLevel;
+import com.JobsNow.backend.entity.enums.GenderRequirement;
 import com.JobsNow.backend.entity.enums.JobType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -52,6 +54,16 @@ public class Job {
 
     @Enumerated(EnumType.STRING)
     private JobType jobType;
+
+    @Enumerated(EnumType.STRING)
+    private ApplicationLanguage applicationLanguage;
+
+    @Enumerated(EnumType.STRING)
+    private GenderRequirement genderRequirement;
+
+    private Integer minAge;
+
+    private Integer maxAge;
 
     private String location;
 

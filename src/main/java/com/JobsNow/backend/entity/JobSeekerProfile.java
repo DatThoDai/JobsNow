@@ -54,4 +54,7 @@ public class JobSeekerProfile {
 
     @OneToMany(mappedBy = "jobSeekerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Certificate> certificates;
+
+    @OneToMany(mappedBy = "jobSeekerProfile", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Social> socials;
 }

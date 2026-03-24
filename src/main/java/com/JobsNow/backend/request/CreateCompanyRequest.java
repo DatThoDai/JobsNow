@@ -24,6 +24,17 @@ public class CreateCompanyRequest {
     @JsonProperty("industry_ids")
     private List<Integer> industryIds;
 
+    @JsonProperty("name_user_contact")
+    private String nameUserContact;
+
+    @JsonProperty("tutorial_apply")
+    private String tutorialApply;
+
+    private List<SocialLinkItem> socials;
+
+    @JsonProperty("thumbnail_image_urls")
+    private List<String> thumbnailImageUrls;
+
     @JsonSetter("industry_ids")
     public void setIndustryIdsFromJson(List<?> raw) {
         if (raw == null || raw.isEmpty()) {

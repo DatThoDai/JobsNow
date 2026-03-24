@@ -2,7 +2,9 @@ package com.JobsNow.backend.service.imp;
 
 import com.JobsNow.backend.dto.JobDTO;
 import com.JobsNow.backend.entity.*;
+import com.JobsNow.backend.entity.enums.ApplicationLanguage;
 import com.JobsNow.backend.entity.enums.EducationLevel;
+import com.JobsNow.backend.entity.enums.GenderRequirement;
 import com.JobsNow.backend.entity.enums.JobType;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
@@ -16,6 +18,7 @@ import com.JobsNow.backend.service.JobService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -76,6 +79,23 @@ public class JobServiceImpl implements JobService {
         if (request.getJobType() != null) {
             job.setJobType(JobType.valueOf(request.getJobType().toUpperCase()));
         }
+        if (request.getApplicationLanguage() != null && !request.getApplicationLanguage().isBlank()) {
+            try {
+                job.setApplicationLanguage(ApplicationLanguage.valueOf(request.getApplicationLanguage().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid application language");
+            }
+        }
+        if (request.getGenderRequirement() != null && !request.getGenderRequirement().isBlank()) {
+            try {
+                job.setGenderRequirement(GenderRequirement.valueOf(request.getGenderRequirement().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid gender requirement");
+            }
+        }
+        job.setMinAge(request.getMinAge());
+        job.setMaxAge(request.getMaxAge());
+        validateAgeRange(job.getMinAge(), job.getMaxAge());
         if (request.getCategoryId() != null) {
             JobCategory category = jobCategoryRepository.findById(request.getCategoryId())
                     .orElseThrow(() -> new NotFoundException("Category not found"));
@@ -126,10 +146,33 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public JobDTO getJobById(Integer jobId) {
-        Job job = jobRepository.findById(jobId)
+        Job job = jobRepository.findByIdWithCompanyAndSocials(jobId)
                 .orElseThrow(() -> new NotFoundException("Job not found"));
         return JobMapper.toJobDTO(job);
+    }
+
+    private static void validateAgeRange(Integer minAge, Integer maxAge) {
+        if (minAge != null && maxAge != null && minAge > maxAge) {
+            throw new BadRequestException("minAge must be <= maxAge");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<JobDTO> getRelatedJobs(Integer jobId, int limit) {
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new NotFoundException("Job not found"));
+        if (job.getCategory() == null) {
+            return new ArrayList<>();
+        }
+        int cap = Math.min(Math.max(limit, 1), 24);
+        List<Job> related = jobRepository.findRelatedByCategory(
+                job.getCategory().getId(),
+                jobId,
+                PageRequest.of(0, cap));
+        return related.stream().map(JobMapper::toJobDTO).toList();
     }
 
     @Override
@@ -243,6 +286,35 @@ public class JobServiceImpl implements JobService {
         if (request.getThumbnailUrl() != null) {
             job.setThumbnailUrl(request.getThumbnailUrl());
         }
+        if (request.getApplicationLanguage() != null) {
+            if (request.getApplicationLanguage().isBlank()) {
+                job.setApplicationLanguage(null);
+            } else {
+                try {
+                    job.setApplicationLanguage(ApplicationLanguage.valueOf(request.getApplicationLanguage().toUpperCase()));
+                } catch (IllegalArgumentException e) {
+                    throw new BadRequestException("Invalid application language");
+                }
+            }
+        }
+        if (request.getGenderRequirement() != null) {
+            if (request.getGenderRequirement().isBlank()) {
+                job.setGenderRequirement(null);
+            } else {
+                try {
+                    job.setGenderRequirement(GenderRequirement.valueOf(request.getGenderRequirement().toUpperCase()));
+                } catch (IllegalArgumentException e) {
+                    throw new BadRequestException("Invalid gender requirement");
+                }
+            }
+        }
+        if (request.getMinAge() != null) {
+            job.setMinAge(request.getMinAge());
+        }
+        if (request.getMaxAge() != null) {
+            job.setMaxAge(request.getMaxAge());
+        }
+        validateAgeRange(job.getMinAge(), job.getMaxAge());
         if (!Boolean.TRUE.equals(job.getIsApproved())) {
             job.setIsPending(true);
             job.setIsApproved(false);

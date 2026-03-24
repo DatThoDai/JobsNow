@@ -2,9 +2,11 @@ package com.JobsNow.backend.mapper;
 
 import com.JobsNow.backend.dto.JobSeekerProfileDTO;
 import com.JobsNow.backend.dto.JobSeekerSkillDTO;
+import com.JobsNow.backend.dto.SocialDTO;
 import com.JobsNow.backend.entity.JobSeekerProfile;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -36,6 +38,16 @@ public class JobSeekerProfileMapper {
                         .filter(r -> !Boolean.TRUE.equals(r.getIsDeleted()))
                         .map(ResumeMapper::toResumeDTO)
                         .collect(Collectors.toList()))
+                .socials(profile.getSocials() != null && !profile.getSocials().isEmpty()
+                        ? profile.getSocials().stream()
+                        .map(s -> SocialDTO.builder()
+                                .id(s.getId())
+                                .platform(s.getPlatform().name())
+                                .url(s.getUrl())
+                                .logoUrl(s.getLogoUrl())
+                                .build())
+                        .collect(Collectors.toList())
+                        : new ArrayList<>())
                 .build();
     }
 }
