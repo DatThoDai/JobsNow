@@ -3,6 +3,7 @@ package com.JobsNow.backend.controllers;
 import com.JobsNow.backend.request.CreateCompanyRequest;
 import com.JobsNow.backend.request.UpdateCompanyRequest;
 import com.JobsNow.backend.response.ResponseFactory;
+import com.JobsNow.backend.service.CompanyFollowerService;
 import com.JobsNow.backend.service.CompanyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CompanyController {
     private final CompanyService companyService;
+    private final CompanyFollowerService companyFollowerService;
 
     @GetMapping("/me")
     public ResponseEntity<?> getMyCompany(org.springframework.security.core.Authentication auth) {
@@ -96,5 +98,31 @@ public class CompanyController {
     public ResponseEntity<?> deleteCompanyImage(@PathVariable Integer imageId){
         companyService.deleteCompanyImage(imageId);
         return ResponseFactory.successMessage("Company image deleted successfully");
+    }
+
+    @PostMapping("/{companyId}/follow")
+    public ResponseEntity<?> followCompany(
+            org.springframework.security.core.Authentication auth,
+            @PathVariable Integer companyId
+    ) {
+        companyFollowerService.followCompany(companyId, auth.getName());
+        return ResponseFactory.successMessage("Followed company successfully");
+    }
+
+    @DeleteMapping("/{companyId}/follow")
+    public ResponseEntity<?> unfollowCompany(
+            org.springframework.security.core.Authentication auth,
+            @PathVariable Integer companyId
+    ) {
+        companyFollowerService.unfollowCompany(companyId, auth.getName());
+        return ResponseFactory.successMessage("Unfollowed company successfully");
+    }
+
+    @GetMapping("/{companyId}/follow")
+    public ResponseEntity<?> isFollowing(
+            org.springframework.security.core.Authentication auth,
+            @PathVariable Integer companyId
+    ) {
+        return ResponseFactory.success(companyFollowerService.isFollowing(companyId, auth.getName()));
     }
 }
