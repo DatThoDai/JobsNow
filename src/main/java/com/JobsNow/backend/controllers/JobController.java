@@ -82,5 +82,8 @@ public class JobController {
         return ResponseFactory.successMessage("Job rejected successfully");
     }
 
-
+    @GetMapping("/hot")
+    public ResponseEntity<?> getHotJobs(@RequestParam(defaultValue = "10") int limit) {
+        return ResponseFactory.success(jobService.getHotJobs(limit));
+    }
 }

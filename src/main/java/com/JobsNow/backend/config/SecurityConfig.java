@@ -117,6 +117,17 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.PUT, "/company/review/update").authenticated();
                     request.requestMatchers(HttpMethod.DELETE, "/company/review/**").authenticated();
                     request.requestMatchers("/api/ai/**").authenticated();
+
+                    request.requestMatchers(HttpMethod.GET, "/plans").permitAll();
+                    request.requestMatchers(HttpMethod.POST, "/plans").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.PUT, "/plans/**").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.POST, "/payment/create").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/payment/vnpay-return").permitAll();
+                    request.requestMatchers(HttpMethod.GET, "/payment/vnpay-ipn").permitAll();
+                    request.requestMatchers(HttpMethod.GET, "/payment/history").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/payment/subscription-status").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/job/hot").permitAll();
+
                     request.anyRequest().authenticated();
 
                 })

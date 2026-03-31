@@ -23,4 +23,5 @@ public interface JobService {
     void approveJob(Integer jobId);
     void rejectJob(RejectJobRequest request);
     List<JobDTO> getAllJobsForAdmin(String status);
+    List<JobDTO> getHotJobs(int limit);
 }

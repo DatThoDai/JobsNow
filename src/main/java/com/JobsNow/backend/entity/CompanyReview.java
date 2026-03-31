@@ -28,6 +28,6 @@ public class CompanyReview {
     @JoinColumn(name = "job_seeker_profile_id")
     private JobSeekerProfile jobSeekerProfile;
 
-    @Column(columnDefinition = "boolean default false")
-    private Boolean isApproved;
+    @Column
+    private Boolean isApproved = false;
 }

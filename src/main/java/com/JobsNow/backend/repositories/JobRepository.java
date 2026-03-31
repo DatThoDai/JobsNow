@@ -31,6 +31,7 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
     List<Job> findByCategoryId(@Param("categoryId") Integer categoryId);
 
     List<Job> findByIsActiveTrueAndIsDeletedFalse();
+    List<Job> findByIsActiveTrueAndIsDeletedFalseOrderByFinalScoreDescPostedAtDesc();
     @Query("SELECT DISTINCT j FROM Job j " +
             "LEFT JOIN j.company c " +
             "LEFT JOIN j.jobSkills js " +
@@ -44,7 +45,8 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
             "LOWER(s.skillName) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
             "AND (:location IS NULL OR :location = '' OR LOWER(j.location) LIKE LOWER(CONCAT('%', :location, '%'))) " +
             "AND (:jobType IS NULL OR j.jobType = :jobType) " +
-            "AND (:categoryIds IS NULL OR j.category.id IN :categoryIds)")
+            "AND (:categoryIds IS NULL OR j.category.id IN :categoryIds) " +
+            "ORDER BY j.finalScore DESC NULLS LAST, j.postedAt DESC")
     List<Job> searchJobs(
             @Param("keyword") String keyword,
             @Param("location") String location,

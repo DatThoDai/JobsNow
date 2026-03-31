@@ -31,7 +31,7 @@ public class User {
     private Role role;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "varchar(20) DEFAULT 'ACTIVE'")
+    @Column(name = "status", nullable = false, length = 20)
     private UserAccountStatus status = UserAccountStatus.ACTIVE;
 
     private Boolean isVerified;
