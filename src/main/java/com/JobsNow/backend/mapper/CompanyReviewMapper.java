@@ -9,14 +9,16 @@ public class CompanyReviewMapper {
     public static CompanyReviewResponse toResponse(CompanyReview review) {
         return CompanyReviewResponse.builder()
                 .reviewId(review.getReviewId())
+                .userName(review.getJobSeekerProfile() != null && review.getJobSeekerProfile().getUser() != null
+                        ? review.getJobSeekerProfile().getUser().getFullName()
+                        : "Anonymous")
                 .rating(review.getRating())
-                .reviewText(review.getReviewText())
-                .reviewDate(review.getReviewDate())
-                .companyId(review.getCompany().getCompanyId())
-                .jobSeekerProfileId(review.getJobSeekerProfile().getProfileId())
-                .jobSeekerProfileName(
-                        review.getJobSeekerProfile().getUser().getFullName()
-                )
+                .title(review.getTitle())
+                .pros(review.getPros())
+                .cons(review.getCons())
+                .recommend(review.getRecommend())
+                .status(review.getStatus() == null ? null : review.getStatus().name())
+                .createdAt(review.getCreatedAt())
                 .build();
     }
 }

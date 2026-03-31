@@ -26,6 +26,7 @@ public class CompanyDTO {
     private List<IndustryDTO> industries;
     private Boolean isVerified;
     private Integer jobPostCount;
+    private Long followerCount;
 
     private String email;
     private String phone;

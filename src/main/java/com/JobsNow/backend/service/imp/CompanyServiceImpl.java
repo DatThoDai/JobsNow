@@ -13,6 +13,7 @@ import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.CompanyMapper;
 import com.JobsNow.backend.repositories.CompanyImageRepository;
+import com.JobsNow.backend.repositories.CompanyFollowerRepository;
 import com.JobsNow.backend.repositories.CompanyRepository;
 import com.JobsNow.backend.repositories.IndustryRepository;
 import com.JobsNow.backend.repositories.UserRepository;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 public class CompanyServiceImpl implements CompanyService {
     private final CompanyRepository companyRepository;
     private final CompanyImageRepository companyImageRepository;
+    private final CompanyFollowerRepository companyFollowerRepository;
     private final UserRepository userRepository;
     private final IndustryRepository industryRepository;
     private final AwsS3Service awsS3Service;
@@ -57,7 +59,9 @@ public class CompanyServiceImpl implements CompanyService {
     public CompanyDTO getCompanyById(Integer companyId) {
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found"));
-        return CompanyMapper.toCompanyDTO(company);
+        CompanyDTO dto = CompanyMapper.toCompanyDTO(company);
+        dto.setFollowerCount(getFollowerCount(companyId));
+        return dto;
     }
 
     @Override
@@ -376,5 +380,10 @@ public class CompanyServiceImpl implements CompanyService {
                         .type(img.getImageType().name())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Long getFollowerCount(Integer companyId) {
+        return companyFollowerRepository.countByCompanyCompanyId(companyId);
     }
 }
