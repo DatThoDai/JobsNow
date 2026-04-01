@@ -54,7 +54,7 @@ public class SecurityConfig {
                     request.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll();
 
                     request.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
-                    request.requestMatchers(HttpMethod.GET, "/company/review/**").permitAll();
+                    request.requestMatchers(HttpMethod.GET, "/company/*/reviews").permitAll();
                     request.requestMatchers("/ws/**").permitAll();
 
                     request.requestMatchers(HttpMethod.GET, "/job", "/job/{jobId}", "/job/searchJobs").permitAll();
@@ -69,6 +69,7 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.PUT, "/company/update/**").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.GET, "/company/all", "/company/search").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/company/{companyId}").permitAll();
+                    request.requestMatchers(HttpMethod.GET, "/company/{companyId}/follow").authenticated();
                     request.requestMatchers(HttpMethod.GET, "/company/**").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/category/**").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/profile/{profileId}").permitAll();
@@ -83,7 +84,8 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/profile/all").hasAnyRole("ADMIN", "COMPANY");
                     request.requestMatchers("/major/**").hasRole("ADMIN");
                     request.requestMatchers("/admin/**").hasRole("ADMIN");
-                    request.requestMatchers(HttpMethod.PUT, "/company/review/approve/**").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.GET, "/company/recruiter/reviews/**").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.PUT, "/company/recruiter/reviews/**").hasRole("COMPANY");
                     // COMPANY
                     request.requestMatchers("/job/create").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/job/{jobId}").hasRole("COMPANY");
@@ -98,6 +100,8 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/company/{companyId}/images").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.POST, "/company/{companyId}/images").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.DELETE, "/company/images/**").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.POST, "/company/*/follow").authenticated();
+                    request.requestMatchers(HttpMethod.DELETE, "/company/*/follow").authenticated();
                     // JOBSEEKER
                     request.requestMatchers("/resume/**").hasRole("JOBSEEKER");
                     request.requestMatchers("/application/apply").hasRole("JOBSEEKER");
@@ -113,9 +117,7 @@ public class SecurityConfig {
                     request.requestMatchers("/chat/**").authenticated();
                     request.requestMatchers("/notification/**").authenticated();
                     request.requestMatchers("/aws/s3/**").authenticated();
-                    request.requestMatchers(HttpMethod.POST, "/company/review/add").authenticated();
-                    request.requestMatchers(HttpMethod.PUT, "/company/review/update").authenticated();
-                    request.requestMatchers(HttpMethod.DELETE, "/company/review/**").authenticated();
+                    request.requestMatchers(HttpMethod.POST, "/company/*/reviews").hasRole("JOBSEEKER");
                     request.requestMatchers("/api/ai/**").authenticated();
 
                     request.requestMatchers(HttpMethod.GET, "/plans").permitAll();

@@ -1,15 +1,12 @@
 package com.JobsNow.backend.service;
 
-import com.JobsNow.backend.request.AddCompanyReviewRequest;
-import com.JobsNow.backend.request.UpdateCompanyReviewRequest;
-import com.JobsNow.backend.response.CompanyReviewResponse;
-
-import java.util.List;
+import com.JobsNow.backend.request.CreateCompanyReviewRequest;
+import com.JobsNow.backend.response.CompanyReviewListResponse;
 
 public interface CompanyReviewService {
-    void addCompanyReview(AddCompanyReviewRequest request);
-    void updateCompanyReview(UpdateCompanyReviewRequest request);
-    void deleteCompanyReview(Integer reviewId);
-    List<CompanyReviewResponse> getCompanyReviews(Integer companyId);
-    void approveReview(Integer reviewId);
+    void createReview(Integer companyId, String email, CreateCompanyReviewRequest request);
+    CompanyReviewListResponse getApprovedReviews(Integer companyId, int page, int limit);
+    CompanyReviewListResponse getMyCompanyPendingReviews(String email, int page, int limit);
+    void approveReview(Integer reviewId, String email);
+    void rejectReview(Integer reviewId, String email);
 }

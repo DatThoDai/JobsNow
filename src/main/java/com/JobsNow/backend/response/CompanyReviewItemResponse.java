@@ -6,11 +6,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CompanyReviewResponse {
+public class CompanyReviewItemResponse {
     private Integer reviewId;
     private String userName;
     private Integer rating;
@@ -18,6 +19,5 @@ public class CompanyReviewResponse {
     private String pros;
     private String cons;
     private Boolean recommend;
-    private String status;
     private LocalDateTime createdAt;
 }

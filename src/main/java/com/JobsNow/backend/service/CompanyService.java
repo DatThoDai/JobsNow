@@ -23,4 +23,5 @@ public interface CompanyService {
     List<CompanyImageDTO> addCompanyImage(Integer companyId, MultipartFile imageFile, String type);
     void deleteCompanyImage(Integer imageId);
     List<CompanyImageDTO> getCompanyImages(Integer companyId);
+    Long getFollowerCount(Integer companyId);
 }
