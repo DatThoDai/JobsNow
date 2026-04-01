@@ -20,5 +20,8 @@ public class SubscriptionPlanDTO {
     private Boolean useAiCvBuilder;
     private Integer priorityLevel;
     private String scope;
+    private String targetAudience;
+    private Integer aiMatchLimit;
+    private Boolean isProfileHighlighted;
     private String description;
 }

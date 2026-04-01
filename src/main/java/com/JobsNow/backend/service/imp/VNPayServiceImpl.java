@@ -9,6 +9,7 @@ import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.repositories.*;
 import com.JobsNow.backend.service.CompanyQuotaService;
+import com.JobsNow.backend.service.CandidateQuotaService;
 import com.JobsNow.backend.service.VNPayService;
 import com.JobsNow.backend.utils.VNPayUtils;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class VNPayServiceImpl implements VNPayService {
 
+    private static final double MAX_BOOST_CAP = 0.6;
+    private static final double MAX_MULTIPLIER = 2.0;
+
     private final VNPayConfig vnPayConfig;
     private final UserRepository userRepository;
     private final SubscriptionPlanRepository planRepository;
@@ -32,6 +36,7 @@ public class VNPayServiceImpl implements VNPayService {
     private final JobRepository jobRepository;
     private final JobBoostRepository jobBoostRepository;
     private final CompanyQuotaService companyQuotaService;
+    private final CandidateQuotaService candidateQuotaService;
     private final CompanyRepository companyRepository;
 
     @Override
@@ -132,9 +137,13 @@ public class VNPayServiceImpl implements VNPayService {
         SubscriptionPlan plan = order.getPlan();
         User user = order.getUser();
 
-        companyRepository.findByUser_UserId(user.getUserId()).ifPresent(company ->
-                companyQuotaService.grantPlanBenefits(company.getCompanyId(), plan)
-        );
+        if ("CANDIDATE".equalsIgnoreCase(plan.getTargetAudience())) {
+            candidateQuotaService.grantPlanBenefits(user.getUserId(), plan);
+        } else {
+            companyRepository.findByUser_UserId(user.getUserId()).ifPresent(company ->
+                    companyQuotaService.grantPlanBenefits(company.getCompanyId(), plan)
+            );
+        }
 
         log.info("Subscription activated for user: {}, plan: {}", user.getUserId(), plan.getName());
     }
@@ -170,8 +179,9 @@ public class VNPayServiceImpl implements VNPayService {
         job.setBoostScore(plan.getBoostScore());
 
         double baseScore = job.getBaseScore() != null ? job.getBaseScore() : 0.0;
-        double boostScore = plan.getBoostScore() != null ? plan.getBoostScore() : 0.0;
-        double finalScore = 0.7 * baseScore + 0.3 * boostScore;
+        double boostScore = job.getBoostScore() != null ? job.getBoostScore() : 0.0;
+        double effectiveBoost = Math.min(boostScore, MAX_BOOST_CAP);
+        double finalScore = Math.min(1.0, baseScore * (1.0 + Math.min(effectiveBoost, MAX_MULTIPLIER)));
 
         JobHotTag tag = JobHotTag.NORMAL;
         if (plan.getType() == PlanType.VIP) {

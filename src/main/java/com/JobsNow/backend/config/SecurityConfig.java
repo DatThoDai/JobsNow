@@ -121,7 +121,7 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/plans").permitAll();
                     request.requestMatchers(HttpMethod.POST, "/plans").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.PUT, "/plans/**").hasRole("ADMIN");
-                    request.requestMatchers(HttpMethod.POST, "/payment/create").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.POST, "/payment/create").hasAnyRole("COMPANY", "JOBSEEKER");
                     request.requestMatchers(HttpMethod.GET, "/payment/vnpay-return").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/payment/vnpay-ipn").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/payment/history").hasRole("COMPANY");

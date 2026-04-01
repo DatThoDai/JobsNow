@@ -1,6 +1,7 @@
 package com.JobsNow.backend.controllers;
 
 import com.JobsNow.backend.dto.CompanySubscriptionStatusDTO;
+import com.JobsNow.backend.dto.CandidateSubscriptionStatusDTO;
 import com.JobsNow.backend.dto.PaymentHistoryDTO;
 import com.JobsNow.backend.entity.Company;
 import com.JobsNow.backend.entity.PaymentOrder;
@@ -8,11 +9,7 @@ import com.JobsNow.backend.entity.SubscriptionPlan;
 import com.JobsNow.backend.entity.User;
 import com.JobsNow.backend.entity.enums.OrderStatus;
 import com.JobsNow.backend.exception.NotFoundException;
-import com.JobsNow.backend.repositories.CompanyFeatureQuotaRepository;
-import com.JobsNow.backend.repositories.CompanyRepository;
-import com.JobsNow.backend.repositories.PaymentOrderRepository;
-import com.JobsNow.backend.repositories.SubscriptionPlanRepository;
-import com.JobsNow.backend.repositories.UserRepository;
+import com.JobsNow.backend.repositories.*;
 import com.JobsNow.backend.request.CreatePaymentRequest;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.VNPayService;
@@ -26,6 +23,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -42,6 +41,7 @@ public class PaymentController {
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
     private final CompanyFeatureQuotaRepository quotaRepository;
+    private final CandidateFeatureQuotaRepository candidateQuotaRepository;
 
     @PostMapping("/create")
     public ResponseEntity<?> createPayment(
@@ -66,18 +66,34 @@ public class PaymentController {
         }
 
         if (!isBoost) {
-            Company company = companyRepository.findByUser_UserId(user.getUserId()).orElse(null);
-            if (company != null) {
-                var quota = quotaRepository.findByCompany_CompanyId(company.getCompanyId()).orElse(null);
-                var latestPaidOrder = orderRepository.findTopByUser_UserIdAndStatusAndPlan_ScopeOrderByPaidAtDesc(user.getUserId(), OrderStatus.PAID, "SUBSCRIPTION").orElse(null);
-                boolean active = quota != null && quota.getExpiresAt() != null && quota.getExpiresAt().isAfter(LocalDateTime.now());
+            boolean isCandidatePlan = "CANDIDATE".equalsIgnoreCase(plan.getTargetAudience());
+
+            if (isCandidatePlan) {
+                var candidateQuota = candidateQuotaRepository.findByUser_UserId(user.getUserId()).orElse(null);
+                var latestPaidOrder = orderRepository.findTopByUser_UserIdAndStatusAndPlan_ScopeOrderByPaidAtDesc(user.getUserId(), OrderStatus.PAID, plan.getScope()).orElse(null);
+                boolean active = candidateQuota != null && candidateQuota.getExpiresAt() != null && candidateQuota.getExpiresAt().isAfter(LocalDateTime.now());
                 boolean samePlanActive = active
                         && latestPaidOrder != null
                         && latestPaidOrder.getPlan() != null
                         && Objects.equals(latestPaidOrder.getPlan().getPlanId(), request.getPlanId());
 
                 if (samePlanActive) {
-                    return ResponseFactory.error(409, "Gói hiện tại vẫn còn hiệu lực. Không thể mua trùng cùng gói.", org.springframework.http.HttpStatus.CONFLICT);
+                    return ResponseFactory.error(409, "Bạn đang sử dụng gói này, không thể mua trùng.", org.springframework.http.HttpStatus.CONFLICT);
+                }
+            } else {
+                Company company = companyRepository.findByUser_UserId(user.getUserId()).orElse(null);
+                if (company != null) {
+                    var quota = quotaRepository.findByCompany_CompanyId(company.getCompanyId()).orElse(null);
+                    var latestPaidOrder = orderRepository.findTopByUser_UserIdAndStatusAndPlan_ScopeOrderByPaidAtDesc(user.getUserId(), OrderStatus.PAID, "SUBSCRIPTION").orElse(null);
+                    boolean active = quota != null && quota.getExpiresAt() != null && quota.getExpiresAt().isAfter(LocalDateTime.now());
+                    boolean samePlanActive = active
+                            && latestPaidOrder != null
+                            && latestPaidOrder.getPlan() != null
+                            && Objects.equals(latestPaidOrder.getPlan().getPlanId(), request.getPlanId());
+
+                    if (samePlanActive) {
+                        return ResponseFactory.error(409, "Gói hiện tại vẫn còn hiệu lực. Không thể mua trùng cùng gói.", org.springframework.http.HttpStatus.CONFLICT);
+                    }
                 }
             }
         }
@@ -104,19 +120,45 @@ public class PaymentController {
 
         String txnRef = paramsToVerify.get("vnp_TxnRef");
         String responseCode = paramsToVerify.get("vnp_ResponseCode");
+        String flow = resolvePaymentFlow(txnRef);
+        String encodedTxnRef = txnRef != null ? URLEncoder.encode(txnRef, StandardCharsets.UTF_8) : "";
+        String encodedFlow = URLEncoder.encode(flow, StandardCharsets.UTF_8);
 
         if (!VNPayUtils.isValidSignature(paramsToVerify, vnPayConfig.getVnpHashSecret(), secureHash)) {
-            response.sendRedirect("http://localhost:5173/payment-result?status=invalid&txnRef=" + txnRef);
+            response.sendRedirect("http://localhost:5173/payment-result?status=invalid&txnRef=" + encodedTxnRef + "&flow=" + encodedFlow);
             return;
         }
 
         vnPayService.handlePaymentCallback(paramsToVerify);
 
         if ("00".equals(responseCode)) {
-            response.sendRedirect("http://localhost:5173/payment-result?status=success&txnRef=" + txnRef);
+            response.sendRedirect("http://localhost:5173/payment-result?status=success&txnRef=" + encodedTxnRef + "&flow=" + encodedFlow);
         } else {
-            response.sendRedirect("http://localhost:5173/payment-result?status=failed&txnRef=" + txnRef);
+            response.sendRedirect("http://localhost:5173/payment-result?status=failed&txnRef=" + encodedTxnRef + "&flow=" + encodedFlow);
         }
+    }
+
+    private String resolvePaymentFlow(String txnRef) {
+        if (txnRef == null || txnRef.isBlank()) {
+            return "EMPLOYER";
+        }
+
+        PaymentOrder order = orderRepository.findByOrderNumber(txnRef).orElse(null);
+        if (order == null || order.getPlan() == null) {
+            return "EMPLOYER";
+        }
+
+        SubscriptionPlan plan = order.getPlan();
+        String scope = plan.getScope() != null ? plan.getScope().toUpperCase() : "";
+        String audience = plan.getTargetAudience() != null ? plan.getTargetAudience().toUpperCase() : "";
+
+        if ("BOOST".equals(scope)) {
+            return "BOOST";
+        }
+        if ("CANDIDATE_SUBSCRIPTION".equals(scope) || "CANDIDATE".equals(audience)) {
+            return "CANDIDATE";
+        }
+        return "EMPLOYER";
     }
 
     @GetMapping("/vnpay-ipn")
@@ -212,4 +254,46 @@ public class PaymentController {
 
         return ResponseFactory.success(dto);
         }
+
+    @GetMapping("/candidate/subscription-status")
+    public ResponseEntity<?> getCandidateSubscriptionStatus(Authentication authentication) {
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new NotFoundException("User not found"));
+
+        var quota = candidateQuotaRepository.findByUser_UserId(user.getUserId()).orElse(null);
+        var latestPaidOrder = orderRepository.findTopByUser_UserIdAndStatusAndPlan_ScopeOrderByPaidAtDesc(user.getUserId(), OrderStatus.PAID, "CANDIDATE_SUBSCRIPTION").orElse(null);
+        boolean hasPendingOrder = orderRepository.existsByUser_UserIdAndStatusAndPlan_Scope(user.getUserId(), OrderStatus.PENDING, "CANDIDATE_SUBSCRIPTION");
+
+        boolean active = quota != null && quota.getExpiresAt() != null && quota.getExpiresAt().isAfter(LocalDateTime.now());
+        Integer currentPlanId = latestPaidOrder != null && latestPaidOrder.getPlan() != null ? latestPaidOrder.getPlan().getPlanId() : null;
+        boolean canRepurchase = !hasPendingOrder;
+        
+        String accountStatus;
+        if (hasPendingOrder) {
+            accountStatus = "PENDING_PAYMENT";
+        } else if (active && latestPaidOrder != null) {
+            accountStatus = "PAID_ACTIVE";
+        } else if (latestPaidOrder != null) {
+            accountStatus = "EXPIRED";
+        } else {
+            accountStatus = "NO_PLAN";
+        }
+
+        CandidateSubscriptionStatusDTO dto = CandidateSubscriptionStatusDTO.builder()
+            .accountStatus(accountStatus)
+            .currentPlanId(currentPlanId)
+            .currentPlanName(latestPaidOrder != null && latestPaidOrder.getPlan() != null ? latestPaidOrder.getPlan().getName() : null)
+            .active(active)
+            .startedAt(latestPaidOrder != null ? latestPaidOrder.getPaidAt() : null)
+            .expiresAt(quota != null ? quota.getExpiresAt() : null)
+            .remainingAiMatches(quota != null && quota.getRemainingAiMatches() != null ? quota.getRemainingAiMatches() : 0)
+            .remainingAiCvBuilderTrials(quota != null && quota.getRemainingAiCvBuilderTrials() != null ? quota.getRemainingAiCvBuilderTrials() : 0)
+            .isProfileHighlighted(quota != null && Boolean.TRUE.equals(quota.getIsProfileHighlighted()))
+            .canRepurchase(canRepurchase)
+            .hasPendingOrder(hasPendingOrder)
+            .build();
+
+        return ResponseFactory.success(dto);
+    }
 }

@@ -45,6 +45,9 @@ public class SubscriptionPlanController {
         plan.setUseAiCvBuilder(dto.getUseAiCvBuilder());
         plan.setPriorityLevel(resolvePriorityLevel(dto));
         plan.setScope(dto.getScope() != null ? dto.getScope().toUpperCase() : "SUBSCRIPTION");
+        plan.setTargetAudience(dto.getTargetAudience() != null ? dto.getTargetAudience().toUpperCase() : "EMPLOYER");
+        plan.setAiMatchLimit(dto.getAiMatchLimit());
+        plan.setIsProfileHighlighted(dto.getIsProfileHighlighted());
         plan.setDescription(dto.getDescription());
         plan.setIsActive(true);
         planRepository.save(plan);
@@ -65,6 +68,9 @@ public class SubscriptionPlanController {
         plan.setUseAiCvBuilder(dto.getUseAiCvBuilder());
         plan.setPriorityLevel(resolvePriorityLevel(dto));
         plan.setScope(dto.getScope() != null ? dto.getScope().toUpperCase() : plan.getScope());
+        plan.setTargetAudience(dto.getTargetAudience() != null ? dto.getTargetAudience().toUpperCase() : plan.getTargetAudience());
+        plan.setAiMatchLimit(dto.getAiMatchLimit());
+        plan.setIsProfileHighlighted(dto.getIsProfileHighlighted());
         plan.setDescription(dto.getDescription());
         planRepository.save(plan);
         return ResponseFactory.successMessage("Plan updated successfully");
@@ -83,6 +89,9 @@ public class SubscriptionPlanController {
                 .useAiCvBuilder(plan.getUseAiCvBuilder())
                 .priorityLevel(plan.getPriorityLevel())
                 .scope(plan.getScope())
+                .targetAudience(plan.getTargetAudience())
+                .aiMatchLimit(plan.getAiMatchLimit())
+                .isProfileHighlighted(plan.getIsProfileHighlighted())
                 .description(plan.getDescription())
                 .build();
     }

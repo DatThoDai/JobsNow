@@ -11,6 +11,7 @@ import com.JobsNow.backend.mapper.JobMatchScoreMapper;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.AICVService;
+import com.JobsNow.backend.service.CandidateQuotaService;
 import com.JobsNow.backend.service.CompanyQuotaService;
 import com.JobsNow.backend.service.JobMatchService;
 import lombok.RequiredArgsConstructor;
@@ -29,11 +30,18 @@ public class AICVController {
     private final JobMatchService jobMatchService;
     private final JobMatchScoreRepository jobMatchScoreRepository;
     private final CompanyQuotaService companyQuotaService;
+    private final CandidateQuotaService candidateQuotaService;
     private final UserRepository userRepository;
 
     @PostMapping("/improve-cv")
     public ResponseEntity<?> improveCVFromText(@RequestBody ImproveCVRequest request, Authentication authentication) {
-        consumeAiScanIfCompany(authentication);
+        if (isCompany(authentication)) {
+            consumeAiScanIfCompany(authentication);
+        } else if (isJobSeeker(authentication)) {
+            Integer userId = getUserId(authentication);
+            candidateQuotaService.assertAiCvBuilderEnabledForCandidateUser(userId);
+            candidateQuotaService.consumeAiCvBuilderForCandidateUser(userId);
+        }
         return ResponseFactory.success(aiCVService.improveCVFromRequest(request));
     }
 
@@ -42,7 +50,13 @@ public class AICVController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "language", required = false) String language,
             Authentication authentication) {
-        consumeAiScanIfCompany(authentication);
+        if (isCompany(authentication)) {
+            consumeAiScanIfCompany(authentication);
+        } else if (isJobSeeker(authentication)) {
+            Integer userId = getUserId(authentication);
+            candidateQuotaService.assertAiCvBuilderEnabledForCandidateUser(userId);
+            candidateQuotaService.consumeAiCvBuilderForCandidateUser(userId);
+        }
         return ResponseFactory.success(aiCVService.improveCVFromFile(file, language));
     }
 
@@ -53,13 +67,22 @@ public class AICVController {
             companyQuotaService.assertAiCvBuilderEnabledForCompanyUser(userId);
             companyQuotaService.consumeAiCvBuilderForCompanyUser(userId);
             companyQuotaService.consumeAiScanForCompanyUser(userId, 1);
+        } else if (isJobSeeker(authentication)) {
+            Integer userId = getUserId(authentication);
+            candidateQuotaService.assertAiCvBuilderEnabledForCandidateUser(userId);
+            candidateQuotaService.consumeAiCvBuilderForCandidateUser(userId);
         }
         return ResponseFactory.success(aiCVService.generateCV(request));
     }
 
     @PostMapping("/job-match")
     public ResponseEntity<?> jobMatch(@RequestBody JobMatchRequest request, Authentication authentication) {
-        consumeAiScanIfCompany(authentication);
+        if (isCompany(authentication)) {
+            consumeAiScanIfCompany(authentication);
+        } else if (isJobSeeker(authentication)) {
+            Integer userId = getUserId(authentication);
+            candidateQuotaService.consumeAiMatchForCandidateUser(userId, 1);
+        }
         return ResponseFactory.success(jobMatchService.calculateMatch(request));
     }
 
@@ -101,6 +124,14 @@ public class AICVController {
         }
         return authentication.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_COMPANY".equals(a.getAuthority()));
+    }
+
+    private boolean isJobSeeker(Authentication authentication) {
+        if (authentication == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_JOBSEEKER".equals(a.getAuthority()));
     }
 
     private Integer getUserId(Authentication authentication) {
