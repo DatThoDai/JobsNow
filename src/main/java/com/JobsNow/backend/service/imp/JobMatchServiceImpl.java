@@ -165,37 +165,44 @@ public class JobMatchServiceImpl implements JobMatchService {
     @Override
     public int calculateQuickScore(JobSeekerProfile profile, Job job) {
         final Set<String> candidateSkills = new HashSet<>();
-        // 1. Ưu tiên lấy từ Profile Skills
+
+        // 1) Always take skills from profile.
         if (profile.getJobSeekerSkills() != null && !profile.getJobSeekerSkills().isEmpty()) {
             candidateSkills.addAll(profile.getJobSeekerSkills().stream()
                     .filter(js -> js.getSkill() != null && js.getSkill().getSkillName() != null)
                     .map(js -> js.getSkill().getSkillName().toLowerCase().trim())
                     .collect(Collectors.toSet()));
-        } 
-        // 2. Nếu profile rỗng, lấy từ Resume mặc định (Primary Resume)
-        if (candidateSkills.isEmpty() && profile.getResumes() != null) {
+        }
+
+        // 2) Merge skills from preferred resume (primary first, otherwise latest non-deleted).
+        if (profile.getResumes() != null && !profile.getResumes().isEmpty()) {
             profile.getResumes().stream()
-                .filter(r -> Boolean.TRUE.equals(r.getIsPrimary()) && !Boolean.TRUE.equals(r.getIsDeleted()))
-                .findFirst()
-                .ifPresent(primaryResume -> {
-                    // Lấy Skill Tags từ Resume
-                    if (primaryResume.getResumeSkills() != null && !primaryResume.getResumeSkills().isEmpty()) {
-                        candidateSkills.addAll(primaryResume.getResumeSkills().stream()
-                                .filter(rs -> rs.getSkill() != null && rs.getSkill().getSkillName() != null)
-                                .map(rs -> rs.getSkill().getSkillName().toLowerCase().trim())
-                                .collect(Collectors.toSet()));
-                    }
-                    // 3. Fallback: Nếu vẫn rỗng, scan từ extractedText của Resume
-                    if (candidateSkills.isEmpty() && primaryResume.getExtractedText() != null) {
-                        String text = primaryResume.getExtractedText().toLowerCase();
-                        if (job.getJobSkills() != null) {
-                            for (JobSkill js : job.getJobSkills()) {
-                                String sName = js.getSkill().getSkillName().toLowerCase().trim();
-                                if (text.contains(sName)) candidateSkills.add(sName);
+                    .filter(r -> !Boolean.TRUE.equals(r.getIsDeleted()))
+                    .sorted(Comparator
+                            .comparing((Resume r) -> Boolean.TRUE.equals(r.getIsPrimary())).reversed()
+                            .thenComparing(Resume::getUploadedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                    .findFirst()
+                    .ifPresent(preferredResume -> {
+                        if (preferredResume.getResumeSkills() != null && !preferredResume.getResumeSkills().isEmpty()) {
+                            candidateSkills.addAll(preferredResume.getResumeSkills().stream()
+                                    .filter(rs -> rs.getSkill() != null && rs.getSkill().getSkillName() != null)
+                                    .map(rs -> rs.getSkill().getSkillName().toLowerCase().trim())
+                                    .collect(Collectors.toSet()));
+                        }
+
+                        // 3) Also enrich from extracted text if available.
+                        if (preferredResume.getExtractedText() != null && !preferredResume.getExtractedText().isBlank()) {
+                            String text = preferredResume.getExtractedText().toLowerCase();
+                            if (job.getJobSkills() != null) {
+                                for (JobSkill js : job.getJobSkills()) {
+                                    String sName = js.getSkill().getSkillName().toLowerCase().trim();
+                                    if (text.contains(sName)) {
+                                        candidateSkills.add(sName);
+                                    }
+                                }
                             }
                         }
-                    }
-                });
+                    });
         }
 
         Set<String> allJobSkills = new HashSet<>();

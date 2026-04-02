@@ -64,6 +64,11 @@ public class ApplicationServiceImpl implements ApplicationService {
                 .applicationStatus(ApplicationStatus.PENDING)
                 .build();
         applicationRepository.save(application);
+
+        int currentApplyCount = job.getApplyCount() != null ? job.getApplyCount() : 0;
+        job.setApplyCount(currentApplyCount + 1);
+        jobRepository.save(job);
+
         saveStatusHistory(application, ApplicationStatus.PENDING);
     }
 

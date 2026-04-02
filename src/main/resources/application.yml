@@ -3,10 +3,22 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/jobnexus_db
-    username: root
-    password: admin123
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jobnexus_db}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:admin123}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 0
+      connection-timeout: 30000
+      max-lifetime: 600000
+      idle-timeout: 120000
+      data-source-properties:
+        prepareThreshold: 0
+        preparedStatementCacheQueries: 0
+        preparedStatementCacheSizeMiB: 0
+        preferQueryMode: simple
+        autosave: conservative
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:

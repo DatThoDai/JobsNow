@@ -9,4 +9,5 @@ import lombok.Setter;
 public class InitResumeRequest {
     @NotBlank(message = "Resume name is required")
     private String resumeName;
+    private String templateKey;
 }

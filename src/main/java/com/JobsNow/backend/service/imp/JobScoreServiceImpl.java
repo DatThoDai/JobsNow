@@ -22,7 +22,6 @@ import java.util.List;
 public class JobScoreServiceImpl implements JobScoreService {
 
     private static final double MAX_BOOST_CAP = 0.6;
-    private static final double MAX_MULTIPLIER = 2.0;
 
     private final JobRepository jobRepository;
     private final JobBoostRepository jobBoostRepository;
@@ -71,8 +70,8 @@ public class JobScoreServiceImpl implements JobScoreService {
             double baseScore = 0.25 * viewsNorm + 0.30 * applyNorm + 0.20 * ctrNorm + 0.25 * freshness;
 
             double boost = job.getBoostScore() != null ? job.getBoostScore() : 0.0;
-            double effectiveBoost = Math.min(boost, MAX_BOOST_CAP);
-            double finalScore = Math.min(1.0, baseScore * (1.0 + Math.min(effectiveBoost, MAX_MULTIPLIER)));
+            double effectiveBoost = Math.max(0.0, Math.min(boost, MAX_BOOST_CAP));
+            double finalScore = Math.min(1.0, (0.7 * baseScore) + (0.3 * effectiveBoost));
 
             PlanType activePlanType = jobBoostRepository.findByJob_JobIdAndIsActiveTrue(job.getJobId())
                     .map(b -> b.getPlan() != null ? b.getPlan().getType() : null)

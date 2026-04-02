@@ -27,7 +27,6 @@ import java.util.*;
 public class VNPayServiceImpl implements VNPayService {
 
     private static final double MAX_BOOST_CAP = 0.6;
-    private static final double MAX_MULTIPLIER = 2.0;
 
     private final VNPayConfig vnPayConfig;
     private final UserRepository userRepository;
@@ -180,8 +179,8 @@ public class VNPayServiceImpl implements VNPayService {
 
         double baseScore = job.getBaseScore() != null ? job.getBaseScore() : 0.0;
         double boostScore = job.getBoostScore() != null ? job.getBoostScore() : 0.0;
-        double effectiveBoost = Math.min(boostScore, MAX_BOOST_CAP);
-        double finalScore = Math.min(1.0, baseScore * (1.0 + Math.min(effectiveBoost, MAX_MULTIPLIER)));
+        double effectiveBoost = Math.max(0.0, Math.min(boostScore, MAX_BOOST_CAP));
+        double finalScore = Math.min(1.0, (0.7 * baseScore) + (0.3 * effectiveBoost));
 
         JobHotTag tag = JobHotTag.NORMAL;
         if (plan.getType() == PlanType.VIP) {
