@@ -57,7 +57,7 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/company/*/reviews").permitAll();
                     request.requestMatchers("/ws/**").permitAll();
 
-                    request.requestMatchers(HttpMethod.GET, "/job", "/job/{jobId}", "/job/searchJobs").permitAll();
+                    request.requestMatchers(HttpMethod.GET, "/job/**").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/job/company/{companyId}").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/skill/all").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/category/**", "/industry/**", "/skill/**").permitAll();
@@ -65,6 +65,7 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.PUT, "/industry/update").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.DELETE, "/industry/delete/**").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.GET, "/company/me").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/company/*/followers").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.POST, "/company/me").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/company/update/**").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.GET, "/company/all", "/company/search").permitAll();
