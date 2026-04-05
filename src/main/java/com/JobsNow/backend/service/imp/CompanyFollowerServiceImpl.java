@@ -1,6 +1,7 @@
 package com.JobsNow.backend.service.imp;
 
 import com.JobsNow.backend.dto.CompanyFollowerItemDTO;
+import com.JobsNow.backend.dto.FollowedCompanyDTO;
 import com.JobsNow.backend.entity.Company;
 import com.JobsNow.backend.entity.CompanyFollower;
 import com.JobsNow.backend.entity.JobSeekerProfile;
@@ -88,6 +89,27 @@ public class CompanyFollowerServiceImpl implements CompanyFollowerService {
                             .userId(u.getUserId())
                             .fullName(u.getFullName())
                             .avatarUrl(avatar)
+                            .followedAt(cf.getCreatedAt())
+                            .build();
+                });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<FollowedCompanyDTO> getMyFollowedCompanies(String email, Pageable pageable) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        return companyFollowerRepository.findByUser_UserIdOrderByCreatedAtDesc(user.getUserId(), pageable)
+                .map(cf -> {
+                    Company c = cf.getCompany();
+                    return FollowedCompanyDTO.builder()
+                            .companyId(c.getCompanyId())
+                            .companyName(c.getCompanyName())
+                            .logoUrl(c.getLogoUrl())
+                            .address(c.getAddress())
+                            .companySize(c.getCompanySize())
+                            .jobPostCount(c.getJobPostCount())
+                            .followerCount(companyFollowerRepository.countByCompanyCompanyId(c.getCompanyId()))
                             .followedAt(cf.getCreatedAt())
                             .build();
                 });

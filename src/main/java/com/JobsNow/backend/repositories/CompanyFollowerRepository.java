@@ -15,4 +15,6 @@ public interface CompanyFollowerRepository extends JpaRepository<CompanyFollower
     long countByCompanyCompanyId(Integer companyId);
 
     Page<CompanyFollower> findByCompany_CompanyIdOrderByCreatedAtDesc(Integer companyId, Pageable pageable);
+
+    Page<CompanyFollower> findByUser_UserIdOrderByCreatedAtDesc(Integer userId, Pageable pageable);
 }

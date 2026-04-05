@@ -140,4 +140,16 @@ public class CompanyController {
         return ResponseFactory.success(
                 companyFollowerService.getFollowersForCompanyOwner(companyId, auth.getName(), pageable));
     }
+
+    @GetMapping("/my-followed")
+    public ResponseEntity<?> getMyFollowedCompanies(
+            org.springframework.security.core.Authentication auth,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Pageable pageable = PageRequest.of(Math.max(page, 0), safeSize);
+        return ResponseFactory.success(
+                companyFollowerService.getMyFollowedCompanies(auth.getName(), pageable));
+    }
 }
