@@ -21,6 +21,8 @@ import com.JobsNow.backend.service.EmailService;
 import com.JobsNow.backend.service.GoogleTokenVerifier;
 import com.JobsNow.backend.service.LoginOtpRedisService;
 import com.JobsNow.backend.service.PendingRegistrationService;
+import com.JobsNow.backend.service.CompanyQuotaService;
+import com.JobsNow.backend.service.CandidateQuotaService;
 import com.JobsNow.backend.utils.JWTHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,6 +46,8 @@ public class AuthServiceImpl implements AuthService {
     private final JobSeekerProfileRepository jobSeekerProfileRepository;
     private final CompanyRepository companyRepository;
     private final AwsS3Service awsS3Service;
+    private final CompanyQuotaService companyQuotaService;
+    private final CandidateQuotaService candidateQuotaService;
     private final String DEFAULT_AVATAR_URL = "https://jobsnow-upload.s3.us-east-1.amazonaws.com/avatars/default-avatar_1771699390597.png";
     @Override
     @Transactional
@@ -93,6 +97,7 @@ public class AuthServiceImpl implements AuthService {
         profile.setAddress(request.getAddress());
         profile.setDob(request.getDob());
         jobSeekerProfileRepository.save(profile);
+        candidateQuotaService.ensureDefaultQuota(user.getUserId(), 0, 3);
         return "Registration successful! You can now login.";
     }
 
@@ -206,8 +211,9 @@ public class AuthServiceImpl implements AuthService {
         company.setWebsite(registerRequest.getWebsite());
         company.setDescription(registerRequest.getDescription());
         company.setIsVerified(true);
-        company.setJobPostCount(5);
+        company.setJobPostCount(0);
         companyRepository.save(company);
+        companyQuotaService.ensureDefaultQuota(company.getCompanyId(), 5);
         pendingRegistrationService.removePendingRegistration(request.getEmail());
     }
 
@@ -321,6 +327,7 @@ public class AuthServiceImpl implements AuthService {
             profile.setUser(user);
             profile.setAvatarUrl(info.getPicture() != null ? info.getPicture() : DEFAULT_AVATAR_URL);
             jobSeekerProfileRepository.save(profile);
+            candidateQuotaService.ensureDefaultQuota(user.getUserId(), 0, 3);
         }
 
         return buildAuthResponse(user);

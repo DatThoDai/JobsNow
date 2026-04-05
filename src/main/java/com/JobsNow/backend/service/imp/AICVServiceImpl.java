@@ -9,7 +9,17 @@ import org.springframework.web.client.RestTemplate;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.entity.Resume;
+import com.JobsNow.backend.entity.WorkExperience;
+import com.JobsNow.backend.entity.Education;
+import com.JobsNow.backend.entity.Project;
+import com.JobsNow.backend.entity.Certificate;
+import com.JobsNow.backend.entity.ResumeSkill;
 import com.JobsNow.backend.repositories.ResumeRepository;
+import com.JobsNow.backend.repositories.WorkExperienceRepository;
+import com.JobsNow.backend.repositories.EducationRepository;
+import com.JobsNow.backend.repositories.ProjectRepository;
+import com.JobsNow.backend.repositories.CertificateRepository;
+import com.JobsNow.backend.repositories.ResumeSkillRepository;
 import com.JobsNow.backend.request.ImproveCVRequest;
 import com.JobsNow.backend.response.ImproveCVResponse;
 import com.JobsNow.backend.service.AICVService;
@@ -25,6 +35,9 @@ import com.JobsNow.backend.repositories.JobSeekerProfileRepository;
 import com.JobsNow.backend.request.GenerateCVRequest;
 import com.JobsNow.backend.response.GenerateCVResponse;
 
+import java.time.LocalDate;
+import java.util.List;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -33,6 +46,11 @@ public class AICVServiceImpl implements AICVService {
     private final CVParserService cvParserService;
     private final ResumeRepository resumeRepository;
     private final JobSeekerProfileRepository jobSeekerProfileRepository;
+    private final WorkExperienceRepository workExperienceRepository;
+    private final EducationRepository educationRepository;
+    private final ProjectRepository projectRepository;
+    private final CertificateRepository certificateRepository;
+    private final ResumeSkillRepository resumeSkillRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -48,11 +66,26 @@ public class AICVServiceImpl implements AICVService {
             if (resume.getExtractedText() != null && !resume.getExtractedText().isBlank()) {
                 cvText = resume.getExtractedText();
             } else if (resume.getResumeUrl() != null && !resume.getResumeUrl().isBlank()) {
-                cvText = downloadAndExtract(resume.getResumeUrl());
+                try {
+                    cvText = downloadAndExtract(resume.getResumeUrl());
+                    resume.setExtractedText(cvText);
+                    resumeRepository.save(resume);
+                } catch (BadRequestException ex) {
+                    // Fallback cho CV tạo thủ công hoặc file không parse được.
+                    cvText = buildStructuredResumeText(resume);
+                    if (cvText == null || cvText.isBlank()) {
+                        throw ex;
+                    }
+                    resume.setExtractedText(cvText);
+                    resumeRepository.save(resume);
+                }
+            } else {
+                cvText = buildStructuredResumeText(resume);
+                if (cvText == null || cvText.isBlank()) {
+                    throw new BadRequestException("Resume has no content and no file URL");
+                }
                 resume.setExtractedText(cvText);
                 resumeRepository.save(resume);
-            } else {
-                throw new BadRequestException("Resume has no content and no file URL");
             }
         } else if (request.getCvText() != null && !request.getCvText().isBlank()) {
             cvText = request.getCvText();
@@ -146,6 +179,137 @@ public class AICVServiceImpl implements AICVService {
                     .overviewFeedback("AI response could not be parsed. Raw: " + aiResponse)
                     .build();
         }
+    }
+
+    private String buildStructuredResumeText(Resume resume) {
+        StringBuilder sb = new StringBuilder();
+
+        if (resume.getResumeName() != null && !resume.getResumeName().isBlank()) {
+            sb.append("Resume Name: ").append(resume.getResumeName().trim()).append("\n");
+        }
+
+        if (resume.getJobSeekerProfile() != null) {
+            if (resume.getJobSeekerProfile().getUser() != null
+                    && resume.getJobSeekerProfile().getUser().getFullName() != null
+                    && !resume.getJobSeekerProfile().getUser().getFullName().isBlank()) {
+                sb.append("Candidate: ").append(resume.getJobSeekerProfile().getUser().getFullName().trim()).append("\n");
+            }
+            if (resume.getJobSeekerProfile().getTitle() != null && !resume.getJobSeekerProfile().getTitle().isBlank()) {
+                sb.append("Headline: ").append(resume.getJobSeekerProfile().getTitle().trim()).append("\n");
+            }
+        }
+
+        if (resume.getSummary() != null && !resume.getSummary().isBlank()) {
+            sb.append("\nSummary:\n").append(resume.getSummary().trim()).append("\n");
+        }
+
+        List<ResumeSkill> skills = resumeSkillRepository.findByResume_ResumeId(resume.getResumeId());
+        if (!skills.isEmpty()) {
+            sb.append("\nSkills:\n");
+            for (ResumeSkill rs : skills) {
+                if (rs.getSkill() == null || rs.getSkill().getSkillName() == null || rs.getSkill().getSkillName().isBlank()) {
+                    continue;
+                }
+                sb.append("- ").append(rs.getSkill().getSkillName().trim());
+                if (rs.getLevel() != null && !rs.getLevel().isBlank()) {
+                    sb.append(" (").append(rs.getLevel().trim()).append(")");
+                }
+                sb.append("\n");
+            }
+        }
+
+        List<WorkExperience> experiences = workExperienceRepository.findByResume_ResumeIdOrderBySortOrderAsc(resume.getResumeId());
+        if (!experiences.isEmpty()) {
+            sb.append("\nWork Experience:\n");
+            for (WorkExperience we : experiences) {
+                if (we.getTitle() == null || we.getTitle().isBlank()) {
+                    continue;
+                }
+                sb.append("- ").append(we.getTitle().trim());
+                String range = formatDateRange(we.getStartDate(), we.getEndDate());
+                if (!range.isBlank()) {
+                    sb.append(" [").append(range).append("]");
+                }
+                if (we.getDescription() != null && !we.getDescription().isBlank()) {
+                    sb.append(": ").append(we.getDescription().trim());
+                }
+                sb.append("\n");
+            }
+        }
+
+        List<Education> educations = educationRepository.findByResume_ResumeIdOrderBySortOrderAsc(resume.getResumeId());
+        if (!educations.isEmpty()) {
+            sb.append("\nEducation:\n");
+            for (Education edu : educations) {
+                if (edu.getTitle() == null || edu.getTitle().isBlank()) {
+                    continue;
+                }
+                sb.append("- ").append(edu.getTitle().trim());
+                if (edu.getMajor() != null && edu.getMajor().getName() != null && !edu.getMajor().getName().isBlank()) {
+                    sb.append(" (Major: ").append(edu.getMajor().getName().trim()).append(")");
+                }
+                String range = formatDateRange(edu.getStartDate(), edu.getEndDate());
+                if (!range.isBlank()) {
+                    sb.append(" [").append(range).append("]");
+                }
+                if (edu.getDescription() != null && !edu.getDescription().isBlank()) {
+                    sb.append(": ").append(edu.getDescription().trim());
+                }
+                sb.append("\n");
+            }
+        }
+
+        List<Project> projects = projectRepository.findByResume_ResumeIdOrderBySortOrderAsc(resume.getResumeId());
+        if (!projects.isEmpty()) {
+            sb.append("\nProjects:\n");
+            for (Project p : projects) {
+                if (p.getTitle() == null || p.getTitle().isBlank()) {
+                    continue;
+                }
+                sb.append("- ").append(p.getTitle().trim());
+                String range = formatDateRange(p.getStartDate(), p.getEndDate());
+                if (!range.isBlank()) {
+                    sb.append(" [").append(range).append("]");
+                }
+                if (p.getDescription() != null && !p.getDescription().isBlank()) {
+                    sb.append(": ").append(p.getDescription().trim());
+                }
+                sb.append("\n");
+            }
+        }
+
+        List<Certificate> certificates = certificateRepository.findByResume_ResumeIdOrderBySortOrderAsc(resume.getResumeId());
+        if (!certificates.isEmpty()) {
+            sb.append("\nCertifications:\n");
+            for (Certificate cert : certificates) {
+                if (cert.getTitle() == null || cert.getTitle().isBlank()) {
+                    continue;
+                }
+                sb.append("- ").append(cert.getTitle().trim());
+                if (cert.getIssueDate() != null) {
+                    sb.append(" (").append(cert.getIssueDate()).append(")");
+                }
+                if (cert.getDescription() != null && !cert.getDescription().isBlank()) {
+                    sb.append(": ").append(cert.getDescription().trim());
+                }
+                sb.append("\n");
+            }
+        }
+
+        String built = sb.toString().trim();
+        return built.isBlank() ? null : built;
+    }
+
+    private String formatDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null && endDate == null) {
+            return "";
+        }
+        String start = startDate != null ? startDate.toString() : "";
+        String end = endDate != null ? endDate.toString() : "Present";
+        if (start.isBlank()) {
+            return end;
+        }
+        return start + " - " + end;
     }
 
     private String downloadAndExtract(String fileUrl) {

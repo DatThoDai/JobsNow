@@ -10,6 +10,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import com.JobsNow.backend.entity.enums.JobHotTag;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -96,4 +97,18 @@ public class Job {
     private Boolean isApproved = false;
 
     private Boolean isExpired = false;
+
+    private Integer viewCount = 0;
+
+    private Integer applyCount = 0;
+
+    private Double baseScore = 0.0;
+
+    private Double boostScore = 0.0;
+
+    private Double finalScore = 0.0;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private JobHotTag hotTag = JobHotTag.NORMAL;
 }

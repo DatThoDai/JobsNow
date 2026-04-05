@@ -28,6 +28,9 @@ public class CompanyReview {
     @JoinColumn(name = "job_seeker_profile_id", nullable = false)
     private JobSeekerProfile jobSeekerProfile;
 
+    @Column
+    private Boolean isApproved = false;
+
     @Column(nullable = false)
     private Integer rating;
 

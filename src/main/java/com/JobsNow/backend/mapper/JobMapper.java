@@ -83,6 +83,13 @@ public class JobMapper {
 
         dto.setMajors( job.getMajors() != null ? job.getMajors() : new ArrayList<>());
 
+        dto.setViewCount(job.getViewCount());
+        dto.setApplyCount(job.getApplyCount());
+        dto.setBaseScore(job.getBaseScore());
+        dto.setBoostScore(job.getBoostScore());
+        dto.setFinalScore(job.getFinalScore());
+        dto.setHotTag(job.getHotTag() != null ? job.getHotTag().name() : "NORMAL");
+
         return dto;
     }
 }

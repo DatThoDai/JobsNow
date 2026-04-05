@@ -93,26 +93,26 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.DELETE, "/job/{jobId}").hasRole("COMPANY");
                     request.requestMatchers("/application/job/**", "/application/company/**").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/application/{applicationId}/status").hasRole("COMPANY");
-                    request.requestMatchers(HttpMethod.POST, "/company/{companyId}/logo").hasRole("COMPANY");
-                    request.requestMatchers(HttpMethod.DELETE, "/company/{companyId}/logo").hasRole("COMPANY");
-                    request.requestMatchers(HttpMethod.PUT, "/company/{companyId}").hasRole("COMPANY");
-                    request.requestMatchers(HttpMethod.POST, "/company/{companyId}/banner").hasRole("COMPANY");
-                    request.requestMatchers(HttpMethod.DELETE, "/company/{companyId}/banner").hasRole("COMPANY");
-                    request.requestMatchers(HttpMethod.GET, "/company/{companyId}/images").hasRole("COMPANY");
-                    request.requestMatchers(HttpMethod.POST, "/company/{companyId}/images").hasRole("COMPANY");
-                    request.requestMatchers(HttpMethod.DELETE, "/company/images/**").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.POST, "/company/{companyId}/logo").hasAnyRole("COMPANY", "ADMIN", "JOBSEEKER");
+                    request.requestMatchers(HttpMethod.DELETE, "/company/{companyId}/logo").hasAnyRole("COMPANY", "ADMIN", "JOBSEEKER");
+                    request.requestMatchers(HttpMethod.PUT, "/company/{companyId}").hasAnyRole("COMPANY", "ADMIN", "JOBSEEKER");
+                    request.requestMatchers(HttpMethod.POST, "/company/{companyId}/banner").hasAnyRole("COMPANY", "ADMIN", "JOBSEEKER");
+                    request.requestMatchers(HttpMethod.DELETE, "/company/{companyId}/banner").hasAnyRole("COMPANY", "ADMIN", "JOBSEEKER");
+                    request.requestMatchers(HttpMethod.GET, "/company/{companyId}/images").hasAnyRole("COMPANY", "ADMIN", "JOBSEEKER");
+                    request.requestMatchers(HttpMethod.POST, "/company/{companyId}/images").hasAnyRole("COMPANY", "ADMIN", "JOBSEEKER");
+                    request.requestMatchers(HttpMethod.DELETE, "/company/images/**").hasAnyRole("COMPANY", "ADMIN", "JOBSEEKER");
                     request.requestMatchers(HttpMethod.POST, "/company/*/follow").authenticated();
                     request.requestMatchers(HttpMethod.DELETE, "/company/*/follow").authenticated();
                     // JOBSEEKER
                     request.requestMatchers("/resume/**").hasRole("JOBSEEKER");
                     request.requestMatchers("/application/apply").hasRole("JOBSEEKER");
                     request.requestMatchers("/application/jobseeker/**").hasRole("JOBSEEKER");
-                    request.requestMatchers("/profile/**").hasRole("JOBSEEKER");
-                    request.requestMatchers("/profile/user/{userId}").hasRole("JOBSEEKER");
-                    request.requestMatchers(HttpMethod.PUT, "/profile/{profileId}").hasRole("JOBSEEKER");
+                    request.requestMatchers("/profile/**").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
+                    request.requestMatchers("/profile/user/{userId}").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
+                    request.requestMatchers(HttpMethod.PUT, "/profile/{profileId}").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
                     request.requestMatchers(HttpMethod.GET, "/application/{applicationId}").authenticated();
-                    request.requestMatchers("/profile/{profileId}/avatar").hasRole("JOBSEEKER");
-                    request.requestMatchers("/profile/skills").hasRole("JOBSEEKER");
+                    request.requestMatchers("/profile/{profileId}/avatar").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
+                    request.requestMatchers("/profile/skills").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
                     request.requestMatchers("/savedJob/**").hasRole("JOBSEEKER");
 
                     request.requestMatchers("/chat/**").authenticated();
@@ -120,6 +120,17 @@ public class SecurityConfig {
                     request.requestMatchers("/aws/s3/**").authenticated();
                     request.requestMatchers(HttpMethod.POST, "/company/*/reviews").hasRole("JOBSEEKER");
                     request.requestMatchers("/api/ai/**").authenticated();
+
+                    request.requestMatchers(HttpMethod.GET, "/plans").permitAll();
+                    request.requestMatchers(HttpMethod.POST, "/plans").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.PUT, "/plans/**").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.POST, "/payment/create").hasAnyRole("COMPANY", "JOBSEEKER");
+                    request.requestMatchers(HttpMethod.GET, "/payment/vnpay-return").permitAll();
+                    request.requestMatchers(HttpMethod.GET, "/payment/vnpay-ipn").permitAll();
+                    request.requestMatchers(HttpMethod.GET, "/payment/history").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/payment/subscription-status").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/job/hot").permitAll();
+
                     request.anyRequest().authenticated();
 
                 })

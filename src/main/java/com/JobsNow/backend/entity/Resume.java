@@ -33,6 +33,9 @@ public class Resume {
     @Column(columnDefinition = "TEXT")
     private String extractedText;
 
+    @Column(length = 50)
+    private String templateKey;
+
     private LocalDateTime uploadedAt;
 
     private Boolean isDeleted;

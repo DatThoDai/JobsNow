@@ -1,6 +1,7 @@
 package com.JobsNow.backend.service.imp;
 
 import com.JobsNow.backend.entity.*;
+import com.JobsNow.backend.entity.enums.EducationLevel;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.repositories.JobRepository;
@@ -18,8 +19,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.Period;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -46,28 +51,6 @@ public class JobMatchServiceImpl implements JobMatchService {
         Job job = jobRepository.findById(request.getJobId())
                 .orElseThrow(() -> new NotFoundException("Job not found"));
 
-        final Set<String> candidateSkills = new HashSet<>();
-        String cvText = "";
-
-        if (request.getProfileId() != null) {
-            JobSeekerProfile profile = jobSeekerProfileRepository.findById(request.getProfileId())
-                    .orElseThrow(() -> new NotFoundException("Profile not found"));
-            if (profile.getJobSeekerSkills() != null) {
-                candidateSkills.addAll(profile.getJobSeekerSkills().stream()
-                        .map(js -> js.getSkill().getSkillName().toLowerCase().trim())
-                        .collect(Collectors.toSet()));
-            }
-            cvText = buildProfileText(profile);
-        }
-
-        if (request.getResumeId() != null) {
-            Resume resume = resumeRepository.findById(request.getResumeId())
-                    .orElseThrow(() -> new NotFoundException("Resume not found"));
-            if (resume.getExtractedText() != null && !resume.getExtractedText().isBlank()) {
-                cvText = resume.getExtractedText();
-            }
-        }
-
         Set<String> requiredSkills = new HashSet<>();
         Set<String> allJobSkills = new HashSet<>();
 
@@ -77,6 +60,45 @@ public class JobMatchServiceImpl implements JobMatchService {
                 allJobSkills.add(skillName);
                 if (Boolean.TRUE.equals(js.getIsRequired())) {
                     requiredSkills.add(skillName);
+                }
+            }
+        }
+
+        final Set<String> candidateSkills = new HashSet<>();
+        String cvText = "";
+        JobSeekerProfile candidateProfile = null;
+        Resume candidateResume = null;
+
+        if (request.getProfileId() != null) {
+            candidateProfile = jobSeekerProfileRepository.findById(request.getProfileId())
+                    .orElseThrow(() -> new NotFoundException("Profile not found"));
+            if (candidateProfile.getJobSeekerSkills() != null) {
+                candidateSkills.addAll(candidateProfile.getJobSeekerSkills().stream()
+                        .map(js -> js.getSkill().getSkillName().toLowerCase().trim())
+                        .collect(Collectors.toSet()));
+            }
+            cvText = buildProfileText(candidateProfile);
+        }
+
+        if (request.getResumeId() != null) {
+            candidateResume = resumeRepository.findById(request.getResumeId())
+                    .orElseThrow(() -> new NotFoundException("Resume not found"));
+            if (candidateResume.getResumeSkills() != null) {
+                candidateSkills.addAll(candidateResume.getResumeSkills().stream()
+                        .filter(rs -> rs.getSkill() != null && rs.getSkill().getSkillName() != null)
+                        .map(rs -> rs.getSkill().getSkillName().toLowerCase().trim())
+                        .collect(Collectors.toSet()));
+            }
+            if (candidateResume.getExtractedText() != null && !candidateResume.getExtractedText().isBlank()) {
+                cvText = candidateResume.getExtractedText();
+                candidateSkills.addAll(extractSkillsFromText(candidateResume.getExtractedText(), allJobSkills));
+            }
+            if (candidateProfile == null) {
+                candidateProfile = candidateResume.getJobSeekerProfile();
+                if (candidateProfile != null && candidateProfile.getJobSeekerSkills() != null) {
+                    candidateSkills.addAll(candidateProfile.getJobSeekerSkills().stream()
+                            .map(js -> js.getSkill().getSkillName().toLowerCase().trim())
+                            .collect(Collectors.toSet()));
                 }
             }
         }
@@ -102,8 +124,8 @@ public class JobMatchServiceImpl implements JobMatchService {
             skillScore = Math.max(0, skillScore - (int) requiredPenalty);
         }
 
-        int educationScore = 70;
-        int experienceScore = 70;
+        int educationScore = calculateEducationScore(candidateProfile, candidateResume, job);
+        int experienceScore = calculateExperienceScore(candidateProfile, candidateResume, job);
         int ruleBasedScore = (int) (skillScore * 0.6 + educationScore * 0.2 + experienceScore * 0.2);
 
         int aiScore = 50;
@@ -143,10 +165,44 @@ public class JobMatchServiceImpl implements JobMatchService {
     @Override
     public int calculateQuickScore(JobSeekerProfile profile, Job job) {
         final Set<String> candidateSkills = new HashSet<>();
-        if (profile.getJobSeekerSkills() != null) {
+
+        // 1) Always take skills from profile.
+        if (profile.getJobSeekerSkills() != null && !profile.getJobSeekerSkills().isEmpty()) {
             candidateSkills.addAll(profile.getJobSeekerSkills().stream()
+                    .filter(js -> js.getSkill() != null && js.getSkill().getSkillName() != null)
                     .map(js -> js.getSkill().getSkillName().toLowerCase().trim())
                     .collect(Collectors.toSet()));
+        }
+
+        // 2) Merge skills from preferred resume (primary first, otherwise latest non-deleted).
+        if (profile.getResumes() != null && !profile.getResumes().isEmpty()) {
+            profile.getResumes().stream()
+                    .filter(r -> !Boolean.TRUE.equals(r.getIsDeleted()))
+                    .sorted(Comparator
+                            .comparing((Resume r) -> Boolean.TRUE.equals(r.getIsPrimary())).reversed()
+                            .thenComparing(Resume::getUploadedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                    .findFirst()
+                    .ifPresent(preferredResume -> {
+                        if (preferredResume.getResumeSkills() != null && !preferredResume.getResumeSkills().isEmpty()) {
+                            candidateSkills.addAll(preferredResume.getResumeSkills().stream()
+                                    .filter(rs -> rs.getSkill() != null && rs.getSkill().getSkillName() != null)
+                                    .map(rs -> rs.getSkill().getSkillName().toLowerCase().trim())
+                                    .collect(Collectors.toSet()));
+                        }
+
+                        // 3) Also enrich from extracted text if available.
+                        if (preferredResume.getExtractedText() != null && !preferredResume.getExtractedText().isBlank()) {
+                            String text = preferredResume.getExtractedText().toLowerCase();
+                            if (job.getJobSkills() != null) {
+                                for (JobSkill js : job.getJobSkills()) {
+                                    String sName = js.getSkill().getSkillName().toLowerCase().trim();
+                                    if (text.contains(sName)) {
+                                        candidateSkills.add(sName);
+                                    }
+                                }
+                            }
+                        }
+                    });
         }
 
         Set<String> allJobSkills = new HashSet<>();
@@ -159,8 +215,10 @@ public class JobMatchServiceImpl implements JobMatchService {
             }
         }
 
+        if (allJobSkills.isEmpty()) return 50;
+
         long matched = allJobSkills.stream().filter(candidateSkills::contains).count();
-        int skillScore = allJobSkills.isEmpty() ? 50 : (int) ((double) matched / allJobSkills.size() * 100);
+        int skillScore = (int) ((double) matched / allJobSkills.size() * 100);
 
         if (!requiredSkills.isEmpty()) {
             long missingReq = requiredSkills.stream().filter(s -> !candidateSkills.contains(s)).count();
@@ -327,5 +385,112 @@ public class JobMatchServiceImpl implements JobMatchService {
         }
 
         return sb.toString();
+    }
+
+    private Set<String> extractSkillsFromText(String text, Set<String> referenceSkills) {
+        if (text == null || text.isBlank() || referenceSkills.isEmpty()) {
+            return Set.of();
+        }
+        String normalizedText = text.toLowerCase();
+        Set<String> extracted = new HashSet<>();
+        for (String skill : referenceSkills) {
+            if (normalizedText.contains(skill)) {
+                extracted.add(skill);
+            }
+        }
+        return extracted;
+    }
+
+    private int calculateEducationScore(JobSeekerProfile profile, Resume resume, Job job) {
+        if (job.getEducationLevel() == null || job.getEducationLevel() == EducationLevel.ANY) {
+            return 100;
+        }
+
+        JobSeekerProfile candidateProfile = profile;
+        if (candidateProfile == null && resume != null) {
+            candidateProfile = resume.getJobSeekerProfile();
+        }
+        if (candidateProfile == null || candidateProfile.getEducations() == null || candidateProfile.getEducations().isEmpty()) {
+            return 20;
+        }
+
+        int requiredRank = educationRank(job.getEducationLevel());
+        int candidateRank = candidateProfile.getEducations().stream()
+                .map(Education::getEducationLevel)
+                .filter(Objects::nonNull)
+                .mapToInt(this::educationRank)
+                .max()
+                .orElse(0);
+
+        if (candidateRank >= requiredRank) return 100;
+        if (candidateRank == requiredRank - 1) return 70;
+        if (candidateRank == requiredRank - 2) return 40;
+        return 20;
+    }
+
+    private int educationRank(EducationLevel level) {
+        return switch (level) {
+            case HIGH_SCHOOL -> 1;
+            case VOCATIONAL -> 2;
+            case ASSOCIATE -> 3;
+            case BACHELOR -> 4;
+            case MASTER -> 5;
+            case DOCTORATE -> 6;
+            case OTHER -> 1;
+            case ANY -> 0;
+        };
+    }
+
+    private int calculateExperienceScore(JobSeekerProfile profile, Resume resume, Job job) {
+        int requiredYears = parseMinimumRequiredYears(job.getYearsOfExperience());
+        JobSeekerProfile candidateProfile = profile;
+        if (candidateProfile == null && resume != null) {
+            candidateProfile = resume.getJobSeekerProfile();
+        }
+
+        double candidateYears = estimateCandidateYears(candidateProfile);
+
+        if (requiredYears <= 0) {
+            if (candidateYears >= 3) return 100;
+            if (candidateYears >= 1) return 80;
+            if (candidateYears > 0) return 60;
+            return 40;
+        }
+
+        if (candidateYears >= requiredYears) return 100;
+        if (candidateYears <= 0) return 0;
+        return Math.max(10, (int) Math.round((candidateYears / requiredYears) * 100));
+    }
+
+    private int parseMinimumRequiredYears(String yearsText) {
+        if (yearsText == null || yearsText.isBlank()) {
+            return 0;
+        }
+        Matcher matcher = Pattern.compile("\\d+").matcher(yearsText);
+        if (matcher.find()) {
+            return Integer.parseInt(matcher.group());
+        }
+        return 0;
+    }
+
+    private double estimateCandidateYears(JobSeekerProfile profile) {
+        if (profile == null || profile.getWorkExperiences() == null || profile.getWorkExperiences().isEmpty()) {
+            return 0;
+        }
+
+        long totalMonths = 0;
+        LocalDate now = LocalDate.now();
+        for (WorkExperience we : profile.getWorkExperiences()) {
+            if (we.getStartDate() == null) {
+                continue;
+            }
+            LocalDate end = we.getEndDate() != null ? we.getEndDate() : now;
+            if (end.isBefore(we.getStartDate())) {
+                continue;
+            }
+            Period period = Period.between(we.getStartDate(), end);
+            totalMonths += (long) period.getYears() * 12 + period.getMonths();
+        }
+        return totalMonths / 12.0;
     }
 }

@@ -1,6 +1,7 @@
 package com.JobsNow.backend.repositories;
 
 import com.JobsNow.backend.entity.Job;
+import com.JobsNow.backend.entity.enums.JobType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
@@ -30,18 +31,26 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
     List<Job> findByCategoryId(@Param("categoryId") Integer categoryId);
 
     List<Job> findByIsActiveTrueAndIsDeletedFalse();
-    @Query("SELECT j FROM Job j " +
+    List<Job> findByIsActiveTrueAndIsDeletedFalseOrderByFinalScoreDescPostedAtDesc();
+    @Query("SELECT DISTINCT j FROM Job j " +
             "LEFT JOIN j.company c " +
+            "LEFT JOIN j.jobSkills js " +
+            "LEFT JOIN js.skill s " +
             "WHERE j.isDeleted = false AND j.isActive = true " +
             "AND (:keyword IS NULL OR :keyword = '' OR " +
             "LOWER(j.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "LOWER(j.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "LOWER(c.companyName) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
-            "AND (:location IS NULL OR j.location IN :location) " +
-            "AND (:categoryIds IS NULL OR j.category.id IN :categoryIds)")
+            "LOWER(j.requirements) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "LOWER(c.companyName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "LOWER(s.skillName) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+            "AND (:location IS NULL OR :location = '' OR LOWER(j.location) LIKE LOWER(CONCAT('%', :location, '%'))) " +
+            "AND (:jobType IS NULL OR j.jobType = :jobType) " +
+            "AND (:categoryIds IS NULL OR j.category.id IN :categoryIds) " +
+            "ORDER BY j.finalScore DESC NULLS LAST, j.postedAt DESC")
     List<Job> searchJobs(
             @Param("keyword") String keyword,
-            @Param("location") List<String> location,
+            @Param("location") String location,
+            @Param("jobType") JobType jobType,
             @Param("categoryIds") List<Integer> categoryIds
     );
 

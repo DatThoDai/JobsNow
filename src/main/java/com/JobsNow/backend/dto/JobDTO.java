@@ -53,4 +53,14 @@ public class JobDTO {
 
     private List<JobSkillDTO> jobSkills;
     private List<Major> majors;
+
+    private Integer viewCount;
+    private Integer applyCount;
+    private Double baseScore;
+    private Double boostScore;
+    private Double finalScore;
+    private String hotTag;
+    private Boolean boostActive;
+    private String activeBoostPlanType;
+    private LocalDateTime activeBoostEndAt;
 }

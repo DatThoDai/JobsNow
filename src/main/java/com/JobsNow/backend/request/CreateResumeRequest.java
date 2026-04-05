@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class CreateResumeRequest {
     @NotBlank(message = "Resume name is required")
     private String resumeName;
+    private String templateKey;
     private MultipartFile resume;
     private Boolean isPrimary;
 }

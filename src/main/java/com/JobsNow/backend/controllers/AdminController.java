@@ -11,9 +11,10 @@ import com.JobsNow.backend.service.ApplicationService;
 import com.JobsNow.backend.service.JobService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -45,6 +46,18 @@ public class AdminController {
     @GetMapping("/jobs")
     public ResponseEntity<?> getJobsForAdmin(@RequestParam(required = false) String status) {
         return ResponseFactory.success(jobService.getAllJobsForAdmin(status));
+    }
+
+    @PutMapping("/jobs/{jobId}/unpublish")
+    public ResponseEntity<?> unpublishJobByAdmin(@PathVariable Integer jobId) {
+        jobService.unpublishJobByAdmin(jobId);
+        return ResponseFactory.successMessage("Job unpublished successfully");
+    }
+
+    @DeleteMapping("/jobs/{jobId}")
+    public ResponseEntity<?> deleteJobByAdmin(@PathVariable Integer jobId) {
+        jobService.deleteJob(jobId);
+        return ResponseFactory.successMessage("Job deleted successfully");
     }
 
     @GetMapping("/stats")

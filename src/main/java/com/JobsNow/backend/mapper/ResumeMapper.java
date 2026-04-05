@@ -12,6 +12,7 @@ public class ResumeMapper {
         resumeDTO.setResumeName(resume.getResumeName());
         resumeDTO.setResumeUrl(resume.getResumeUrl());
         resumeDTO.setSummary(resume.getSummary());
+        resumeDTO.setTemplateKey(resume.getTemplateKey());
         resumeDTO.setUploadedAt(resume.getUploadedAt());
         resumeDTO.setIsPrimary(resume.getIsPrimary());
         return resumeDTO;
