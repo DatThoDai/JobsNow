@@ -22,4 +22,6 @@ public class ApplicationDetailResponse {
     private JobSeekerProfileDTO jobSeekerProfile;
     private ResumeDTO resumeApplied;
     private List<ApplicationStatusDTO> statusHistory;
+    /** HTML từ recruiter (TipTap); chỉ có ý nghĩa khi status = INTERVIEWING */
+    private String interviewDetailsHtml;
 }

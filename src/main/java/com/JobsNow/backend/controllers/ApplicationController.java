@@ -1,6 +1,7 @@
 package com.JobsNow.backend.controllers;
 
 import com.JobsNow.backend.request.ApplicationRequest;
+import com.JobsNow.backend.request.UpdateApplicationStatusRequest;
 import com.JobsNow.backend.response.BaseResponse;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.ApplicationService;
@@ -40,9 +41,11 @@ public class ApplicationController {
         return ResponseFactory.success(applicationService.getApplicationsByCompany(companyId));
     }
 
-    @PutMapping("{applicationId}/status")
-    public ResponseEntity<?> updateApplicationStatus(@PathVariable Integer applicationId, @RequestParam String status){
-        applicationService.updateApplicationStatus(applicationId, status);
+    @PutMapping("/{applicationId}/status")
+    public ResponseEntity<?> updateApplicationStatus(
+            @PathVariable Integer applicationId,
+            @RequestBody UpdateApplicationStatusRequest request) {
+        applicationService.updateApplicationStatus(applicationId, request);
         return ResponseFactory.successMessage("Application status updated successfully");
     }
 }

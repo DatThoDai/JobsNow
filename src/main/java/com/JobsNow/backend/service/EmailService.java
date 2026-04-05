@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 import java.io.UnsupportedEncodingException;
 
@@ -84,6 +85,44 @@ public class EmailService {
     /**
      * Gửi mail khi recruiter từ chối application (REJECTED).
      */
+    /**
+     * Nội dung HTML do recruiter soạn (TipTap). Có thể dùng placeholder: {{name}}, {{jobTitle}}, {{companyName}}
+     * — được thay bằng dữ liệu thật khi gửi (tương tự Sendy merge tags).
+     */
+    public void sendApplicationInterviewEmail(
+            String to,
+            String candidateName,
+            String jobTitle,
+            String companyName,
+            String interviewBodyHtml
+    ) throws MessagingException, UnsupportedEncodingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true);
+        helper.setFrom(fromEmail, "JobsNow");
+        helper.setTo(to);
+        helper.setSubject("JobsNow - Lịch phỏng vấn / Thông tin phỏng vấn");
+        String safeName = HtmlUtils.htmlEscape(candidateName != null ? candidateName : "Ứng viên");
+        String safeJob = HtmlUtils.htmlEscape(jobTitle != null ? jobTitle : "");
+        String safeCompany = HtmlUtils.htmlEscape(companyName != null ? companyName : "");
+        String body = interviewBodyHtml != null ? interviewBodyHtml : "";
+        body = body
+                .replace("{{name}}", safeName)
+                .replace("{{jobTitle}}", safeJob)
+                .replace("{{companyName}}", safeCompany);
+        helper.setText(
+                "<div style='font-family: Arial, sans-serif; max-width: 640px;'>" +
+                        "<h2 style='color: #1565c0;'>Thông báo phỏng vấn</h2>" +
+                        "<p style='color:#444;'>Kính gửi <strong>" + safeName + "</strong>,</p>" +
+                        "<div style='margin-top:16px;color:#333;line-height:1.6;'>" + body + "</div>" +
+                        "<p style='color:#666;margin-top:24px;font-size:13px;'>Vị trí: <strong>" + safeJob + "</strong><br/>" +
+                        "Công ty: <strong>" + safeCompany + "</strong></p>" +
+                        "<p style='color:#666;'>Trân trọng,<br/>JobsNow</p>" +
+                        "</div>",
+                true
+        );
+        mailSender.send(message);
+    }
+
     public void sendApplicationRejectedEmail(String to, String candidateName, String jobTitle, String companyName) throws MessagingException, UnsupportedEncodingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true);

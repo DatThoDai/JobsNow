@@ -5,6 +5,7 @@ import com.JobsNow.backend.dto.CompanyJobStatsDTO;
 import com.JobsNow.backend.dto.RecentApplicationDTO;
 import com.JobsNow.backend.dto.RegionChartDataDTO;
 import com.JobsNow.backend.request.ApplicationRequest;
+import com.JobsNow.backend.request.UpdateApplicationStatusRequest;
 import com.JobsNow.backend.response.ApplicationDetailResponse;
 import com.JobsNow.backend.response.ApplicationOfJobResponse;
 
@@ -16,7 +17,7 @@ public interface ApplicationService {
     ApplicationDetailResponse getApplicationDetail(Integer applicationId);
     List<ApplicationOfJobResponse> getApplicationsByJob(Integer jobId);
     List<ApplicationDetailResponse> getApplicationsByCompany(Integer companyId);
-    void updateApplicationStatus(Integer applicationId, String status);
+    void updateApplicationStatus(Integer applicationId, UpdateApplicationStatusRequest request);
 
     List<RecentApplicationDTO> getRecentApplications();
     ChartDataDTO getApplicationTrends(String type, Integer month);
