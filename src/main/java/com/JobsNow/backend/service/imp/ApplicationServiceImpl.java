@@ -12,6 +12,7 @@ import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.ApplicationMapper;
 import com.JobsNow.backend.repositories.*;
 import com.JobsNow.backend.request.ApplicationRequest;
+import com.JobsNow.backend.request.UpdateApplicationStatusRequest;
 import com.JobsNow.backend.request.CreateNotificationRequest;
 import com.JobsNow.backend.response.ApplicationDetailResponse;
 import com.JobsNow.backend.response.ApplicationOfJobResponse;
@@ -110,11 +111,23 @@ public class ApplicationServiceImpl implements ApplicationService {
     }
 
     @Override
-    public void updateApplicationStatus(Integer applicationId, String status) {
+    @Transactional
+    public void updateApplicationStatus(Integer applicationId, UpdateApplicationStatusRequest request) {
         Application application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new NotFoundException("Application not found"));
+        if (request == null || request.getStatus() == null || request.getStatus().isBlank()) {
+            throw new BadRequestException("status is required");
+        }
         try {
-            ApplicationStatus newStatus = ApplicationStatus.valueOf(status.toUpperCase());
+            ApplicationStatus newStatus = ApplicationStatus.valueOf(request.getStatus().trim().toUpperCase());
+            if (newStatus == ApplicationStatus.INTERVIEWING) {
+                if (isBlankRichText(request.getInterviewDetailsHtml())) {
+                    throw new BadRequestException("interviewDetailsHtml is required when status is INTERVIEWING");
+                }
+                application.setInterviewDetailsHtml(request.getInterviewDetailsHtml().trim());
+            } else {
+                application.setInterviewDetailsHtml(null);
+            }
             application.setApplicationStatus(newStatus);
             applicationRepository.save(application);
             saveStatusHistory(application, newStatus);
@@ -131,9 +144,17 @@ public class ApplicationServiceImpl implements ApplicationService {
                     notification);
 
             sendApplicationStatusEmail(application, newStatus);
-        }catch (IllegalArgumentException e){
+        } catch (IllegalArgumentException e) {
             throw new BadRequestException("Invalid application status");
         }
+    }
+
+    private static boolean isBlankRichText(String html) {
+        if (html == null) {
+            return true;
+        }
+        String stripped = html.replaceAll("(?s)<[^>]*>", " ").replace("&nbsp;", " ").trim();
+        return stripped.isEmpty();
     }
 
     @Override
@@ -243,6 +264,9 @@ public class ApplicationServiceImpl implements ApplicationService {
                 emailService.sendApplicationApprovedEmail(toEmail, candidateName, jobTitle, companyName);
             } else if (status == ApplicationStatus.REJECTED) {
                 emailService.sendApplicationRejectedEmail(toEmail, candidateName, jobTitle, companyName);
+            } else if (status == ApplicationStatus.INTERVIEWING) {
+                String bodyHtml = application.getInterviewDetailsHtml();
+                emailService.sendApplicationInterviewEmail(toEmail, candidateName, jobTitle, companyName, bodyHtml);
             }
         } catch (Exception e) {
             log.error("Failed to send application status email to {}, applicationId={}, status={}", toEmail, application.getApplicationId(), status, e);

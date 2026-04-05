@@ -43,6 +43,7 @@ public class ApplicationMapper {
                                 .time(history.getChangedAt())
                                 .build())
                         .collect(Collectors.toList()))
+                .interviewDetailsHtml(application.getInterviewDetailsHtml())
                 .build();
     }
 

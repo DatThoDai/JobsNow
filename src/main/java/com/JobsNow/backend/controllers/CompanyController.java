@@ -6,6 +6,8 @@ import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.CompanyFollowerService;
 import com.JobsNow.backend.service.CompanyService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -124,5 +126,18 @@ public class CompanyController {
             @PathVariable Integer companyId
     ) {
         return ResponseFactory.success(companyFollowerService.isFollowing(companyId, auth.getName()));
+    }
+
+    @GetMapping("/{companyId}/followers")
+    public ResponseEntity<?> getCompanyFollowers(
+            org.springframework.security.core.Authentication auth,
+            @PathVariable Integer companyId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Pageable pageable = PageRequest.of(Math.max(page, 0), safeSize);
+        return ResponseFactory.success(
+                companyFollowerService.getFollowersForCompanyOwner(companyId, auth.getName(), pageable));
     }
 }
