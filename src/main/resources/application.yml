@@ -44,8 +44,8 @@ jwt:
   expiration: 86400000
 
 redis:
-  host: localhost
-  port: 6379
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
   password: ${REDIS_PASSWORD}
 
 google:
