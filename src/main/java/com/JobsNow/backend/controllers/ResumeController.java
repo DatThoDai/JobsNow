@@ -4,7 +4,6 @@ import com.JobsNow.backend.request.CreateResumeRequest;
 import com.JobsNow.backend.request.InitResumeRequest;
 import com.JobsNow.backend.request.UpdateResumeRequest;
 import jakarta.validation.Valid;
-import com.JobsNow.backend.response.BaseResponse;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.ResumeService;
 import lombok.RequiredArgsConstructor;

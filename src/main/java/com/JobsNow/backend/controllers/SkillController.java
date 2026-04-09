@@ -1,7 +1,6 @@
 package com.JobsNow.backend.controllers;
 
 import com.JobsNow.backend.request.CreateSkillRequest;
-import com.JobsNow.backend.response.BaseResponse;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.SkillService;
 import lombok.RequiredArgsConstructor;

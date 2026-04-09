@@ -2,7 +2,6 @@ package com.JobsNow.backend.controllers;
 
 import com.JobsNow.backend.request.ApplicationRequest;
 import com.JobsNow.backend.request.UpdateApplicationStatusRequest;
-import com.JobsNow.backend.response.BaseResponse;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.ApplicationService;
 import jakarta.validation.Valid;
