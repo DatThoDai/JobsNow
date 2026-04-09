@@ -26,7 +26,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class EmailService {
     private final JavaMailSender mailSender;
-        private final ObjectMapper objectMapper;
+        private final ObjectMapper objectMapper = new ObjectMapper();
 
         private final HttpClient httpClient = HttpClient.newBuilder()
                         .connectTimeout(Duration.ofSeconds(10))
