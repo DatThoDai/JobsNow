@@ -1,5 +1,7 @@
 package com.JobsNow.backend.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -9,12 +11,29 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class EmailService {
     private final JavaMailSender mailSender;
+        private final ObjectMapper objectMapper;
+
+        private final HttpClient httpClient = HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofSeconds(10))
+                        .build();
+
+        @Value("${MAIL_PROVIDER:smtp}")
+        private String mailProvider;
 
     @Value("${spring.mail.username}")
         private String smtpUsername;
@@ -22,50 +41,108 @@ public class EmailService {
         @Value("${MAIL_FROM:}")
         private String fromEmail;
 
+        @Value("${BREVO_API_KEY:}")
+        private String brevoApiKey;
+
+        @Value("${BREVO_API_URL:https://api.brevo.com/v3/smtp/email}")
+        private String brevoApiUrl;
+
+        @Value("${BREVO_SENDER_NAME:JobsNow}")
+        private String brevoSenderName;
+
         private String resolveFromEmail() {
                 return (fromEmail != null && !fromEmail.isBlank()) ? fromEmail : smtpUsername;
         }
 
+        private boolean useBrevoApi() {
+                return "brevo-api".equalsIgnoreCase(mailProvider);
+        }
+
+        private void sendEmail(String to, String subject, String htmlBody)
+                        throws MessagingException, UnsupportedEncodingException {
+                if (useBrevoApi()) {
+                        sendViaBrevoApi(to, subject, htmlBody);
+                        return;
+                }
+                sendViaSmtp(to, subject, htmlBody);
+        }
+
+        private void sendViaSmtp(String to, String subject, String htmlBody)
+                        throws MessagingException, UnsupportedEncodingException {
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true);
+                helper.setFrom(resolveFromEmail(), "JobsNow");
+                helper.setTo(to);
+                helper.setSubject(subject);
+                helper.setText(htmlBody, true);
+                mailSender.send(message);
+        }
+
+        private void sendViaBrevoApi(String to, String subject, String htmlBody) throws MessagingException {
+                if (brevoApiKey == null || brevoApiKey.isBlank()) {
+                        throw new MessagingException("BREVO_API_KEY is required when MAIL_PROVIDER=brevo-api");
+                }
+
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("sender", Map.of(
+                                "name", brevoSenderName,
+                                "email", resolveFromEmail()
+                ));
+                payload.put("to", List.of(Map.of("email", to)));
+                payload.put("subject", subject);
+                payload.put("htmlContent", htmlBody);
+
+                String jsonPayload;
+                try {
+                        jsonPayload = objectMapper.writeValueAsString(payload);
+                } catch (JsonProcessingException e) {
+                        throw new MessagingException("Failed to serialize Brevo email payload", e);
+                }
+
+                HttpRequest request = HttpRequest.newBuilder()
+                                .uri(URI.create(brevoApiUrl))
+                                .timeout(Duration.ofSeconds(20))
+                                .header("accept", "application/json")
+                                .header("api-key", brevoApiKey)
+                                .header("content-type", "application/json")
+                                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                                .build();
+
+                try {
+                        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                                throw new MessagingException("Brevo API send failed: status=" + response.statusCode() + ", body=" + response.body());
+                        }
+                } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new MessagingException("Brevo API send interrupted", e);
+                } catch (IOException e) {
+                        throw new MessagingException("Brevo API connection failed", e);
+                }
+        }
+
     public void sendOtpEmail(String to, String otp) throws MessagingException, UnsupportedEncodingException {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true);
-
-        helper.setFrom(resolveFromEmail(), "JobsNow");
-        helper.setTo(to);
-        helper.setSubject("JobsNow - Xác thực email - Mã OTP");
-        helper.setText(
-                "<div style='font-family: Arial, sans-serif;'>" +
-                        "<h2 style='color: #4CAF50;'>Xác thực email của bạn</h2>" +
-                        "<p>Mã OTP của bạn là:</p>" +
-                        "<h1 style='color: #2196F3; letter-spacing: 5px;'>" + otp + "</h1>" +
-                        "<p style='color: #666;'>Mã này có hiệu lực trong <strong>10 phút</strong>.</p>" +
-                        "<p style='color: #f44336;'>⚠️ Vui lòng không chia sẻ mã này với bất kỳ ai.</p>" +
-                        "</div>",
-                true
-        );
-
-        mailSender.send(message);
+                String subject = "JobsNow - Xác thực email - Mã OTP";
+                String htmlBody = "<div style='font-family: Arial, sans-serif;'>" +
+                                "<h2 style='color: #4CAF50;'>Xác thực email của bạn</h2>" +
+                                "<p>Mã OTP của bạn là:</p>" +
+                                "<h1 style='color: #2196F3; letter-spacing: 5px;'>" + otp + "</h1>" +
+                                "<p style='color: #666;'>Mã này có hiệu lực trong <strong>10 phút</strong>.</p>" +
+                                "<p style='color: #f44336;'>⚠️ Vui lòng không chia sẻ mã này với bất kỳ ai.</p>" +
+                                "</div>";
+                sendEmail(to, subject, htmlBody);
     }
 
     public void sendLoginOtpEmail(String to, String otp) throws MessagingException, UnsupportedEncodingException {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true);
-
-        helper.setFrom(resolveFromEmail(), "JobsNow");
-        helper.setTo(to);
-        helper.setSubject("JobsNow - Mã đăng nhập");
-        helper.setText(
-                "<div style='font-family: Arial, sans-serif;'>" +
-                        "<h2 style='color: #4CAF50;'>Mã đăng nhập của bạn</h2>" +
-                        "<p>Mã OTP để đăng nhập:</p>" +
-                        "<h1 style='color: #2196F3; letter-spacing: 5px;'>" + otp + "</h1>" +
-                        "<p style='color: #666;'>Mã này có hiệu lực trong <strong>5 phút</strong>.</p>" +
-                        "<p style='color: #f44336;'>Vui lòng không chia sẻ mã này với bất kỳ ai.</p>" +
-                        "</div>",
-                true
-        );
-
-        mailSender.send(message);
+                String subject = "JobsNow - Mã đăng nhập";
+                String htmlBody = "<div style='font-family: Arial, sans-serif;'>" +
+                                "<h2 style='color: #4CAF50;'>Mã đăng nhập của bạn</h2>" +
+                                "<p>Mã OTP để đăng nhập:</p>" +
+                                "<h1 style='color: #2196F3; letter-spacing: 5px;'>" + otp + "</h1>" +
+                                "<p style='color: #666;'>Mã này có hiệu lực trong <strong>5 phút</strong>.</p>" +
+                                "<p style='color: #f44336;'>Vui lòng không chia sẻ mã này với bất kỳ ai.</p>" +
+                                "</div>";
+                sendEmail(to, subject, htmlBody);
     }
 
     /**
@@ -73,21 +150,14 @@ public class EmailService {
      * Người nhận: jobseeker.
      */
     public void sendApplicationApprovedEmail(String to, String candidateName, String jobTitle, String companyName) throws MessagingException, UnsupportedEncodingException {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true);
-        helper.setFrom(resolveFromEmail(), "JobsNow");
-        helper.setTo(to);
-        helper.setSubject("JobsNow - Đơn ứng tuyển đã được duyệt");
-        helper.setText(
-                "<div style='font-family: Arial, sans-serif;'>" +
-                        "<h2 style='color: #4CAF50;'>Chúc mừng " + (candidateName != null ? candidateName : "Ứng viên") + "!</h2>" +
-                        "<p>Đơn ứng tuyển của bạn vào vị trí <strong>" + jobTitle + "</strong> tại <strong>" + companyName + "</strong> đã được duyệt.</p>" +
-                        "<p>Nhà tuyển dụng sẽ liên hệ với bạn trong thời gian sớm nhất.</p>" +
-                        "<p style='color: #666;'>Trân trọng,<br/>JobsNow</p>" +
-                        "</div>",
-                true
-        );
-        mailSender.send(message);
+        String subject = "JobsNow - Đơn ứng tuyển đã được duyệt";
+        String htmlBody = "<div style='font-family: Arial, sans-serif;'>" +
+                "<h2 style='color: #4CAF50;'>Chúc mừng " + (candidateName != null ? candidateName : "Ứng viên") + "!</h2>" +
+                "<p>Đơn ứng tuyển của bạn vào vị trí <strong>" + jobTitle + "</strong> tại <strong>" + companyName + "</strong> đã được duyệt.</p>" +
+                "<p>Nhà tuyển dụng sẽ liên hệ với bạn trong thời gian sớm nhất.</p>" +
+                "<p style='color: #666;'>Trân trọng,<br/>JobsNow</p>" +
+                "</div>";
+        sendEmail(to, subject, htmlBody);
     }
 
     /**
@@ -104,11 +174,7 @@ public class EmailService {
             String companyName,
             String interviewBodyHtml
     ) throws MessagingException, UnsupportedEncodingException {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true);
-        helper.setFrom(resolveFromEmail(), "JobsNow");
-        helper.setTo(to);
-        helper.setSubject("JobsNow - Lịch phỏng vấn / Thông tin phỏng vấn");
+        String subject = "JobsNow - Lịch phỏng vấn / Thông tin phỏng vấn";
         String safeName = HtmlUtils.htmlEscape(candidateName != null ? candidateName : "Ứng viên");
         String safeJob = HtmlUtils.htmlEscape(jobTitle != null ? jobTitle : "");
         String safeCompany = HtmlUtils.htmlEscape(companyName != null ? companyName : "");
@@ -117,75 +183,51 @@ public class EmailService {
                 .replace("{{name}}", safeName)
                 .replace("{{jobTitle}}", safeJob)
                 .replace("{{companyName}}", safeCompany);
-        helper.setText(
-                "<div style='font-family: Arial, sans-serif; max-width: 640px;'>" +
-                        "<h2 style='color: #1565c0;'>Thông báo phỏng vấn</h2>" +
-                        "<div style='margin-top:16px;color:#333;line-height:1.6;'>" + body + "</div>" +
-                        "<p style='color:#666;margin-top:24px;font-size:13px;'>Vị trí: <strong>" + safeJob + "</strong><br/>" +
-                        "Công ty: <strong>" + safeCompany + "</strong></p>" +
-                        "<p style='color:#666;'>Trân trọng,<br/>JobsNow</p>" +
-                        "</div>",
-                true
-        );
-        mailSender.send(message);
+        String htmlBody = "<div style='font-family: Arial, sans-serif; max-width: 640px;'>" +
+                "<h2 style='color: #1565c0;'>Thông báo phỏng vấn</h2>" +
+                "<div style='margin-top:16px;color:#333;line-height:1.6;'>" + body + "</div>" +
+                "<p style='color:#666;margin-top:24px;font-size:13px;'>Vị trí: <strong>" + safeJob + "</strong><br/>" +
+                "Công ty: <strong>" + safeCompany + "</strong></p>" +
+                "<p style='color:#666;'>Trân trọng,<br/>JobsNow</p>" +
+                "</div>";
+        sendEmail(to, subject, htmlBody);
     }
 
     public void sendApplicationRejectedEmail(String to, String candidateName, String jobTitle, String companyName) throws MessagingException, UnsupportedEncodingException {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true);
-        helper.setFrom(resolveFromEmail(), "JobsNow");
-        helper.setTo(to);
-        helper.setSubject("JobsNow - Thông báo về đơn ứng tuyển");
-        helper.setText(
-                "<div style='font-family: Arial, sans-serif;'>" +
-                        "<h2 style='color: #666;'>Kính gửi " + (candidateName != null ? candidateName : "Ứng viên") + ",</h2>" +
-                        "<p>Rất tiếc, đơn ứng tuyển của bạn vào vị trí <strong>" + jobTitle + "</strong> tại <strong>" + companyName + "</strong> chưa được chọn trong lần này.</p>" +
-                        "<p>Chúc bạn sớm tìm được công việc phù hợp.</p>" +
-                        "<p style='color: #666;'>Trân trọng,<br/>JobsNow</p>" +
-                        "</div>",
-                true
-        );
-        mailSender.send(message);
+        String subject = "JobsNow - Thông báo về đơn ứng tuyển";
+        String htmlBody = "<div style='font-family: Arial, sans-serif;'>" +
+                "<h2 style='color: #666;'>Kính gửi " + (candidateName != null ? candidateName : "Ứng viên") + ",</h2>" +
+                "<p>Rất tiếc, đơn ứng tuyển của bạn vào vị trí <strong>" + jobTitle + "</strong> tại <strong>" + companyName + "</strong> chưa được chọn trong lần này.</p>" +
+                "<p>Chúc bạn sớm tìm được công việc phù hợp.</p>" +
+                "<p style='color: #666;'>Trân trọng,<br/>JobsNow</p>" +
+                "</div>";
+        sendEmail(to, subject, htmlBody);
     }
 
     /**
      * Gửi mail khi admin duyệt bài post cho recruiter.
      */
     public void sendJobPostApprovedEmail(String to, String jobTitle, String companyName) throws MessagingException, UnsupportedEncodingException {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true);
-        helper.setFrom(resolveFromEmail(), "JobsNow");
-        helper.setTo(to);
-        helper.setSubject("JobsNow - Tin tuyển dụng đã được duyệt");
-        helper.setText(
-                "<div style='font-family: Arial, sans-serif;'>" +
-                        "<h2 style='color: #4CAF50;'>Tin tuyển dụng đã được duyệt</h2>" +
-                        "<p>Tin tuyển dụng <strong>" + jobTitle + "</strong> của công ty <strong>" + companyName + "</strong> đã được duyệt và hiển thị trên JobsNow.</p>" +
-                        "<p style='color: #666;'>Trân trọng,<br/>JobsNow</p>" +
-                        "</div>",
-                true
-        );
-        mailSender.send(message);
+        String subject = "JobsNow - Tin tuyển dụng đã được duyệt";
+        String htmlBody = "<div style='font-family: Arial, sans-serif;'>" +
+                "<h2 style='color: #4CAF50;'>Tin tuyển dụng đã được duyệt</h2>" +
+                "<p>Tin tuyển dụng <strong>" + jobTitle + "</strong> của công ty <strong>" + companyName + "</strong> đã được duyệt và hiển thị trên JobsNow.</p>" +
+                "<p style='color: #666;'>Trân trọng,<br/>JobsNow</p>" +
+                "</div>";
+        sendEmail(to, subject, htmlBody);
     }
 
     /**
      * Gửi mail khi admin từ chối bài post cho recruiter.
      */
     public void sendJobPostRejectedEmail(String to, String jobTitle, String companyName, String reason) throws MessagingException, UnsupportedEncodingException {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true);
-        helper.setFrom(resolveFromEmail(), "JobsNow");
-        helper.setTo(to);
-        helper.setSubject("JobsNow - Tin tuyển dụng chưa được duyệt");
-        helper.setText(
-                "<div style='font-family: Arial, sans-serif;'>" +
-                        "<h2 style='color: #f44336;'>Tin tuyển dụng chưa được duyệt</h2>" +
-                        "<p>Tin tuyển dụng <strong>" + jobTitle + "</strong> của công ty <strong>" + companyName + "</strong> chưa được duyệt.</p>" +
-                        (reason != null && !reason.isBlank() ? "<p><strong>Lý do:</strong> " + reason + "</p>" : "") +
-                        "<p style='color: #666;'>Trân trọng,<br/>JobsNow</p>" +
-                        "</div>",
-                true
-        );
-        mailSender.send(message);
+        String subject = "JobsNow - Tin tuyển dụng chưa được duyệt";
+        String htmlBody = "<div style='font-family: Arial, sans-serif;'>" +
+                "<h2 style='color: #f44336;'>Tin tuyển dụng chưa được duyệt</h2>" +
+                "<p>Tin tuyển dụng <strong>" + jobTitle + "</strong> của công ty <strong>" + companyName + "</strong> chưa được duyệt.</p>" +
+                (reason != null && !reason.isBlank() ? "<p><strong>Lý do:</strong> " + reason + "</p>" : "") +
+                "<p style='color: #666;'>Trân trọng,<br/>JobsNow</p>" +
+                "</div>";
+        sendEmail(to, subject, htmlBody);
     }
 }
