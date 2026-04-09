@@ -15,14 +15,22 @@ import java.io.UnsupportedEncodingException;
 @RequiredArgsConstructor
 public class EmailService {
     private final JavaMailSender mailSender;
+
     @Value("${spring.mail.username}")
-    private String fromEmail;
+        private String smtpUsername;
+
+        @Value("${MAIL_FROM:}")
+        private String fromEmail;
+
+        private String resolveFromEmail() {
+                return (fromEmail != null && !fromEmail.isBlank()) ? fromEmail : smtpUsername;
+        }
 
     public void sendOtpEmail(String to, String otp) throws MessagingException, UnsupportedEncodingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true);
 
-        helper.setFrom(fromEmail, "JobsNow");
+        helper.setFrom(resolveFromEmail(), "JobsNow");
         helper.setTo(to);
         helper.setSubject("JobsNow - Xác thực email - Mã OTP");
         helper.setText(
@@ -43,7 +51,7 @@ public class EmailService {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true);
 
-        helper.setFrom(fromEmail, "JobsNow");
+        helper.setFrom(resolveFromEmail(), "JobsNow");
         helper.setTo(to);
         helper.setSubject("JobsNow - Mã đăng nhập");
         helper.setText(
@@ -67,7 +75,7 @@ public class EmailService {
     public void sendApplicationApprovedEmail(String to, String candidateName, String jobTitle, String companyName) throws MessagingException, UnsupportedEncodingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true);
-        helper.setFrom(fromEmail, "JobsNow");
+        helper.setFrom(resolveFromEmail(), "JobsNow");
         helper.setTo(to);
         helper.setSubject("JobsNow - Đơn ứng tuyển đã được duyệt");
         helper.setText(
@@ -98,7 +106,7 @@ public class EmailService {
     ) throws MessagingException, UnsupportedEncodingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true);
-        helper.setFrom(fromEmail, "JobsNow");
+        helper.setFrom(resolveFromEmail(), "JobsNow");
         helper.setTo(to);
         helper.setSubject("JobsNow - Lịch phỏng vấn / Thông tin phỏng vấn");
         String safeName = HtmlUtils.htmlEscape(candidateName != null ? candidateName : "Ứng viên");
@@ -125,7 +133,7 @@ public class EmailService {
     public void sendApplicationRejectedEmail(String to, String candidateName, String jobTitle, String companyName) throws MessagingException, UnsupportedEncodingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true);
-        helper.setFrom(fromEmail, "JobsNow");
+        helper.setFrom(resolveFromEmail(), "JobsNow");
         helper.setTo(to);
         helper.setSubject("JobsNow - Thông báo về đơn ứng tuyển");
         helper.setText(
@@ -146,7 +154,7 @@ public class EmailService {
     public void sendJobPostApprovedEmail(String to, String jobTitle, String companyName) throws MessagingException, UnsupportedEncodingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true);
-        helper.setFrom(fromEmail, "JobsNow");
+        helper.setFrom(resolveFromEmail(), "JobsNow");
         helper.setTo(to);
         helper.setSubject("JobsNow - Tin tuyển dụng đã được duyệt");
         helper.setText(
@@ -166,7 +174,7 @@ public class EmailService {
     public void sendJobPostRejectedEmail(String to, String jobTitle, String companyName, String reason) throws MessagingException, UnsupportedEncodingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true);
-        helper.setFrom(fromEmail, "JobsNow");
+        helper.setFrom(resolveFromEmail(), "JobsNow");
         helper.setTo(to);
         helper.setSubject("JobsNow - Tin tuyển dụng chưa được duyệt");
         helper.setText(
