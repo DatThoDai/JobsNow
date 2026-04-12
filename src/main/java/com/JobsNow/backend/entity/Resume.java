@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Getter
@@ -26,11 +27,21 @@ public class Resume {
 
     private String resumeUrl;
 
+    @Column(columnDefinition = "TEXT")
+    private String summary;
+
+    @Column(columnDefinition = "TEXT")
     private String extractedText;
+
+    @Column(length = 50)
+    private String templateKey;
 
     private LocalDateTime uploadedAt;
 
     private Boolean isDeleted;
 
     private Boolean isPrimary;
+
+    @OneToMany(mappedBy = "resume", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ResumeSkill> resumeSkills;
 }

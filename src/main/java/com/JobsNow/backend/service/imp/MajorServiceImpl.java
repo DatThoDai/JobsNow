@@ -36,4 +36,17 @@ public class MajorServiceImpl implements MajorService {
         }
         majorRepository.deleteById(majorId);
     }
+
+    @Override
+    public void updateMajor(Integer majorId, String newName) {
+        Major major = majorRepository.findById(majorId)
+                .orElseThrow(() -> new BadRequestException("Major not found"));
+
+        if(majorRepository.existsByName(newName) && !newName.equals(major.getName())) {
+            throw new BadRequestException("Major already exists");
+        }
+
+        major.setName(newName);
+        majorRepository.save(major);
+    }
 }

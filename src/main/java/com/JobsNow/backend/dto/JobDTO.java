@@ -26,6 +26,12 @@ public class JobDTO {
     private LocalDateTime postedAt;
     private LocalDate deadline;
     private Boolean isActive;
+    private Boolean isApproved;
+    private Boolean isPending;
+    private Boolean isDeleted;
+    private Boolean isExpired;
+    private String thumbnailUrl;
+    private String note;
 
     private Integer companyId;
     private String companyName;
@@ -34,6 +40,27 @@ public class JobDTO {
     private Integer categoryId;
     private String categoryName;
 
+    private String applicationLanguage;
+    private String genderRequirement;
+    private Integer minAge;
+    private Integer maxAge;
+
+    /** Denormalized from company for job detail */
+    private String contactPersonName;
+    private String contactTutorial;
+    private String companyAddress;
+    private List<SocialDTO> companySocials;
+
     private List<JobSkillDTO> jobSkills;
     private List<Major> majors;
+
+    private Integer viewCount;
+    private Integer applyCount;
+    private Double baseScore;
+    private Double boostScore;
+    private Double finalScore;
+    private String hotTag;
+    private Boolean boostActive;
+    private String activeBoostPlanType;
+    private LocalDateTime activeBoostEndAt;
 }

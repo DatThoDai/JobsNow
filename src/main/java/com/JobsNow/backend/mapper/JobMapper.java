@@ -2,6 +2,7 @@ package com.JobsNow.backend.mapper;
 
 import com.JobsNow.backend.dto.JobDTO;
 import com.JobsNow.backend.dto.JobSkillDTO;
+import com.JobsNow.backend.dto.SocialDTO;
 import com.JobsNow.backend.entity.Job;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -28,11 +29,38 @@ public class JobMapper {
         dto.setPostedAt(job.getPostedAt());
         dto.setDeadline(job.getDeadline());
         dto.setIsActive(job.getIsActive());
+        dto.setIsApproved(job.getIsApproved());
+        dto.setIsPending(job.getIsPending());
+        dto.setIsDeleted(job.getIsDeleted());
+        dto.setIsExpired(job.getIsExpired());
+        dto.setThumbnailUrl(job.getThumbnailUrl());
+        dto.setNote(job.getNote());
+
+        dto.setApplicationLanguage(job.getApplicationLanguage() != null ? job.getApplicationLanguage().name() : null);
+        dto.setGenderRequirement(job.getGenderRequirement() != null ? job.getGenderRequirement().name() : null);
+        dto.setMinAge(job.getMinAge());
+        dto.setMaxAge(job.getMaxAge());
 
         if (job.getCompany() != null) {
-            dto.setCompanyId(job.getCompany().getCompanyId());
-            dto.setCompanyName(job.getCompany().getCompanyName());
-            dto.setCompanyLogo(job.getCompany().getLogoUrl());
+            var c = job.getCompany();
+            dto.setCompanyId(c.getCompanyId());
+            dto.setCompanyName(c.getCompanyName());
+            dto.setCompanyLogo(c.getLogoUrl());
+            dto.setContactPersonName(c.getNameUserContact());
+            dto.setContactTutorial(c.getTutorialApply());
+            dto.setCompanyAddress(c.getAddress());
+            if (c.getSocials() != null && !c.getSocials().isEmpty()) {
+                dto.setCompanySocials(c.getSocials().stream()
+                        .map(s -> SocialDTO.builder()
+                                .id(s.getId())
+                                .platform(s.getPlatform().name())
+                                .url(s.getUrl())
+                                .logoUrl(s.getLogoUrl())
+                                .build())
+                        .collect(Collectors.toList()));
+            } else {
+                dto.setCompanySocials(new ArrayList<>());
+            }
         }
 
         if (job.getCategory() != null) {
@@ -54,6 +82,13 @@ public class JobMapper {
         }
 
         dto.setMajors( job.getMajors() != null ? job.getMajors() : new ArrayList<>());
+
+        dto.setViewCount(job.getViewCount());
+        dto.setApplyCount(job.getApplyCount());
+        dto.setBaseScore(job.getBaseScore());
+        dto.setBoostScore(job.getBoostScore());
+        dto.setFinalScore(job.getFinalScore());
+        dto.setHotTag(job.getHotTag() != null ? job.getHotTag().name() : "NORMAL");
 
         return dto;
     }

@@ -30,6 +30,10 @@ public class User {
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private UserAccountStatus status = UserAccountStatus.ACTIVE;
+
     private Boolean isVerified;
     private LocalDateTime createdAt;
 }

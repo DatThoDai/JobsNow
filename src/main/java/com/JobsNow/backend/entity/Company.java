@@ -22,15 +22,28 @@ public class Company {
     @Column(name = "company_name", nullable = false)
     private String companyName;
 
+    @Column(columnDefinition = "TEXT")
     private String logoUrl;
 
+    @Column(columnDefinition = "TEXT")
     private String bannerUrl;
 
     private String slogan;
 
     private String website;
 
+    @Column(columnDefinition = "TEXT")
     private String description;
+
+    private String address;
+
+    @Column(name = "name_user_contact")
+    private String nameUserContact;
+
+    @Column(name = "tutorial_apply", columnDefinition = "TEXT")
+    private String tutorialApply;
+
+    private String companySize;
 
     private Boolean isVerified = false;
 
@@ -38,7 +51,7 @@ public class Company {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    private Integer jobPostCount;
+    private Integer jobPostCount = 0;
 
     @ManyToMany
     @JoinTable(
@@ -50,4 +63,7 @@ public class Company {
 
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CompanyImage> images;
+
+    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Social> socials;
 }

@@ -1,22 +1,29 @@
 package com.JobsNow.backend.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AwsS3Service {
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
 
     @Value("${aws.s3.bucketName}")
     private String bucketName;
@@ -37,6 +44,7 @@ public class AwsS3Service {
 
             return endpointURL + s3Key;
         } catch (Exception e) {
+            log.error("AWS S3 upload error - bucket: {}, key: {}, error: {}", bucketName, s3Key, e.getMessage(), e);
             throw new RuntimeException("Upload file failed", e);
         } finally {
             try {
@@ -44,6 +52,42 @@ public class AwsS3Service {
             } catch (IOException ex) {
                 System.err.println("Error closing input stream: " + ex.getMessage());
             }
+        }
+    }
+    public String generatePreSignedUrl(String fileName, String contentType) {
+        int extIndex = fileName.lastIndexOf(".");
+        String baseName = fileName.substring(0, extIndex);
+        String extension = fileName.substring(extIndex);
+        String newFileName = baseName + "_" + System.currentTimeMillis() + extension;
+
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(newFileName)
+                .contentType(contentType)
+                .build();
+        PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(r -> r
+                .signatureDuration(Duration.ofMinutes(3))
+                .putObjectRequest(putObjectRequest));
+        return presignedRequest.url().toString();
+    }
+
+    public String uploadMultipartImage(MultipartFile file, String folderPrefix) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File is required");
+        }
+        String originalFileName = file.getOriginalFilename();
+        if (originalFileName == null || !originalFileName.contains(".")) {
+            throw new IllegalArgumentException("Invalid file name");
+        }
+        int dot = originalFileName.lastIndexOf(".");
+        String baseName = originalFileName.substring(0, dot);
+        String extension = originalFileName.substring(dot);
+        String normalizedFolder = folderPrefix.endsWith("/") ? folderPrefix : folderPrefix + "/";
+        String s3Key = normalizedFolder + baseName + "_" + System.currentTimeMillis() + extension;
+        try {
+            return uploadFileToS3(file.getInputStream(), s3Key, file.getContentType());
+        } catch (IOException e) {
+            throw new RuntimeException("Upload file failed", e);
         }
     }
 }

@@ -5,12 +5,15 @@ import com.JobsNow.backend.entity.JobSeekerProfile;
 import com.JobsNow.backend.entity.JobSeekerSkill;
 import com.JobsNow.backend.entity.JobSeekerSkillId;
 import com.JobsNow.backend.entity.Skill;
+import com.JobsNow.backend.entity.Social;
+import com.JobsNow.backend.entity.enums.SocialPlatform;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.JobSeekerProfileMapper;
 import com.JobsNow.backend.repositories.JobSeekerProfileRepository;
 import com.JobsNow.backend.repositories.JobSeekerSkillRepository;
 import com.JobsNow.backend.repositories.SkillRepository;
+import com.JobsNow.backend.request.SocialLinkItem;
 import com.JobsNow.backend.request.UpdateJobSeekerSkillsRequest;
 import com.JobsNow.backend.request.UpdateProfileRequest;
 import com.JobsNow.backend.service.AwsS3Service;
@@ -32,6 +35,7 @@ public class JobSeekerProfileServiceImpl implements JobSeekerProfileService {
     private final JobSeekerSkillRepository jobSeekerSkillRepository;
     private final SkillRepository skillRepository;
     @Override
+    @Transactional(readOnly = true)
     public List<JobSeekerProfileDTO> getAllJobSeekerProfiles() {
         List<JobSeekerProfile> profile = jobSeekerProfileRepository.findAll();
         return profile.stream()
@@ -40,6 +44,7 @@ public class JobSeekerProfileServiceImpl implements JobSeekerProfileService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public JobSeekerProfileDTO getProfileById(Integer profileId) {
         JobSeekerProfile profile = jobSeekerProfileRepository.findById(profileId)
                 .orElseThrow(() -> new NotFoundException("Profile not found"));
@@ -47,6 +52,7 @@ public class JobSeekerProfileServiceImpl implements JobSeekerProfileService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public JobSeekerProfileDTO getProfileByUserId(Integer userId) {
         JobSeekerProfile profile = jobSeekerProfileRepository.findByUser_UserId(userId)
                 .orElseThrow(() -> new NotFoundException("Profile not found"));
@@ -54,6 +60,7 @@ public class JobSeekerProfileServiceImpl implements JobSeekerProfileService {
     }
 
     @Override
+    @Transactional
     public void updateProfile(Integer profileId, UpdateProfileRequest request) {
         JobSeekerProfile profile = jobSeekerProfileRepository.findById(profileId)
                 .orElseThrow(() -> new NotFoundException("Profile not found"));
@@ -75,7 +82,36 @@ public class JobSeekerProfileServiceImpl implements JobSeekerProfileService {
         if(request.getDob()!=null){
             profile.setDob(request.getDob());
         }
+        replaceProfileSocialsFromRequest(profile, request.getSocials());
         jobSeekerProfileRepository.save(profile);
+    }
+
+    private void replaceProfileSocialsFromRequest(JobSeekerProfile profile, List<SocialLinkItem> items) {
+        if (items == null) {
+            return;
+        }
+        if (profile.getSocials() == null) {
+            profile.setSocials(new ArrayList<>());
+        } else {
+            profile.getSocials().clear();
+        }
+        for (SocialLinkItem item : items) {
+            if (item.getUrl() == null || item.getUrl().isBlank()) {
+                continue;
+            }
+            SocialPlatform platform;
+            try {
+                platform = SocialPlatform.valueOf(item.getPlatform().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid social platform: " + item.getPlatform());
+            }
+            Social s = new Social();
+            s.setPlatform(platform);
+            s.setUrl(item.getUrl().trim());
+            s.setLogoUrl(item.getLogoUrl());
+            s.setJobSeekerProfile(profile);
+            profile.getSocials().add(s);
+        }
     }
 
     @Override

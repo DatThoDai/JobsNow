@@ -4,6 +4,7 @@ import com.JobsNow.backend.entity.Company;
 import com.JobsNow.backend.entity.JobSeekerProfile;
 import com.JobsNow.backend.entity.Role;
 import com.JobsNow.backend.entity.User;
+import com.JobsNow.backend.entity.UserAccountStatus;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.repositories.CompanyRepository;
 import com.JobsNow.backend.repositories.JobSeekerProfileRepository;
@@ -17,8 +18,11 @@ import com.JobsNow.backend.dto.OtpLoginData;
 import com.JobsNow.backend.service.AuthService;
 import com.JobsNow.backend.service.AwsS3Service;
 import com.JobsNow.backend.service.EmailService;
+import com.JobsNow.backend.service.GoogleTokenVerifier;
 import com.JobsNow.backend.service.LoginOtpRedisService;
 import com.JobsNow.backend.service.PendingRegistrationService;
+import com.JobsNow.backend.service.CompanyQuotaService;
+import com.JobsNow.backend.service.CandidateQuotaService;
 import com.JobsNow.backend.utils.JWTHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -38,9 +42,12 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final PendingRegistrationService pendingRegistrationService;
     private final LoginOtpRedisService loginOtpRedisService;
+    private final GoogleTokenVerifier googleTokenVerifier;
     private final JobSeekerProfileRepository jobSeekerProfileRepository;
     private final CompanyRepository companyRepository;
     private final AwsS3Service awsS3Service;
+    private final CompanyQuotaService companyQuotaService;
+    private final CandidateQuotaService candidateQuotaService;
     private final String DEFAULT_AVATAR_URL = "https://jobsnow-upload.s3.us-east-1.amazonaws.com/avatars/default-avatar_1771699390597.png";
     @Override
     @Transactional
@@ -90,6 +97,7 @@ public class AuthServiceImpl implements AuthService {
         profile.setAddress(request.getAddress());
         profile.setDob(request.getDob());
         jobSeekerProfileRepository.save(profile);
+        candidateQuotaService.ensureDefaultQuota(user.getUserId(), 0, 3);
         return "Registration successful! You can now login.";
     }
 
@@ -132,9 +140,13 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(loginRequest.getEmail())
                 .orElseThrow(() -> new BadRequestException("Invalid email or password"));
 
+        if (user.getPasswordHash() == null) {
+            throw new BadRequestException("Account uses Google sign-in. Please use Google to login.");
+        }
         if(!passwordEncoder.matches(loginRequest.getPassword(), user.getPasswordHash())){
             throw new BadRequestException("Invalid email or password");
         }
+        assertAccountActive(user);
 
         String token = jwtHelper.generateToken(user.getEmail());
         AuthResponse response = new AuthResponse();
@@ -199,8 +211,9 @@ public class AuthServiceImpl implements AuthService {
         company.setWebsite(registerRequest.getWebsite());
         company.setDescription(registerRequest.getDescription());
         company.setIsVerified(true);
-        company.setJobPostCount(5);
+        company.setJobPostCount(0);
         companyRepository.save(company);
+        companyQuotaService.ensureDefaultQuota(company.getCompanyId(), 5);
         pendingRegistrationService.removePendingRegistration(request.getEmail());
     }
 
@@ -265,6 +278,70 @@ public class AuthServiceImpl implements AuthService {
         loginOtpRedisService.deleteOtp(email);
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BadRequestException("User not found"));
+        assertAccountActive(user);
+        String token = jwtHelper.generateToken(user.getEmail());
+        AuthResponse response = new AuthResponse();
+        response.setToken(token);
+        response.setEmail(user.getEmail());
+        response.setFullName(user.getFullName());
+        response.setRole(user.getRole().getRoleName());
+        response.setUserId(user.getUserId());
+        response.setPhone(user.getPhone());
+        String roleName = user.getRole().getRoleName();
+        if (roleName.equals("ROLE_JOBSEEKER")) {
+            JobSeekerProfile profile = jobSeekerProfileRepository.findByUser_UserId(user.getUserId())
+                    .orElseThrow(() -> new BadRequestException("Profile not found"));
+            response.setProfileId(profile.getProfileId());
+            response.setAvatar(profile.getAvatarUrl());
+        } else if (roleName.equals("ROLE_COMPANY")) {
+            Company company = companyRepository.findByUser_UserId(user.getUserId())
+                    .orElseThrow(() -> new BadRequestException("Company not found"));
+            response.setCompanyId(company.getCompanyId());
+            response.setCompanyName(company.getCompanyName());
+            response.setAvatar(company.getLogoUrl());
+        }
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse loginWithGoogle(String idToken) {
+        GoogleTokenVerifier.GoogleUserInfo info = googleTokenVerifier.verify(idToken);
+
+        User user = userRepository.findByEmail(info.getEmail()).orElse(null);
+
+        if (user == null) {
+            Role role = roleRepository.findByRoleName("ROLE_JOBSEEKER")
+                    .orElseThrow(() -> new BadRequestException("Role not found"));
+
+            user = new User();
+            user.setEmail(info.getEmail());
+            user.setFullName(info.getName() != null ? info.getName() : info.getEmail());
+            user.setRole(role);
+            user.setIsVerified(true);
+            user.setCreatedAt(LocalDateTime.now());
+            user.setPasswordHash(null);
+            userRepository.save(user);
+
+            JobSeekerProfile profile = new JobSeekerProfile();
+            profile.setUser(user);
+            profile.setAvatarUrl(info.getPicture() != null ? info.getPicture() : DEFAULT_AVATAR_URL);
+            jobSeekerProfileRepository.save(profile);
+            candidateQuotaService.ensureDefaultQuota(user.getUserId(), 0, 3);
+        }
+
+        return buildAuthResponse(user);
+    }
+
+    private void assertAccountActive(User user) {
+        UserAccountStatus s = user.getStatus() != null ? user.getStatus() : UserAccountStatus.ACTIVE;
+        if (s == UserAccountStatus.DISABLED) {
+            throw new BadRequestException("Tài khoản đã bị vô hiệu hóa.");
+        }
+    }
+
+    private AuthResponse buildAuthResponse(User user) {
+        assertAccountActive(user);
         String token = jwtHelper.generateToken(user.getEmail());
         AuthResponse response = new AuthResponse();
         response.setToken(token);
@@ -293,6 +370,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse getCurrentUser(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BadRequestException("User not found"));
+        assertAccountActive(user);
         AuthResponse response = new AuthResponse();
         response.setEmail(user.getEmail());
         response.setFullName(user.getFullName());

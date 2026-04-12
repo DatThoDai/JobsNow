@@ -1,6 +1,8 @@
 package com.JobsNow.backend.entity;
 
+import com.JobsNow.backend.entity.enums.ApplicationLanguage;
 import com.JobsNow.backend.entity.enums.EducationLevel;
+import com.JobsNow.backend.entity.enums.GenderRequirement;
 import com.JobsNow.backend.entity.enums.JobType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -8,6 +10,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import com.JobsNow.backend.entity.enums.JobHotTag;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -53,9 +56,22 @@ public class Job {
     @Enumerated(EnumType.STRING)
     private JobType jobType;
 
+    @Enumerated(EnumType.STRING)
+    private ApplicationLanguage applicationLanguage;
+
+    @Enumerated(EnumType.STRING)
+    private GenderRequirement genderRequirement;
+
+    private Integer minAge;
+
+    private Integer maxAge;
+
     private String location;
 
     private String note;
+
+    @Column(columnDefinition = "TEXT")
+    private String thumbnailUrl;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
@@ -81,4 +97,18 @@ public class Job {
     private Boolean isApproved = false;
 
     private Boolean isExpired = false;
+
+    private Integer viewCount = 0;
+
+    private Integer applyCount = 0;
+
+    private Double baseScore = 0.0;
+
+    private Double boostScore = 0.0;
+
+    private Double finalScore = 0.0;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private JobHotTag hotTag = JobHotTag.NORMAL;
 }

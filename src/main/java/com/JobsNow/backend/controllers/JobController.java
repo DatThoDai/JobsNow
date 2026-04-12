@@ -1,10 +1,8 @@
 package com.JobsNow.backend.controllers;
 
-import com.JobsNow.backend.dto.JobDTO;
 import com.JobsNow.backend.request.CreateJobRequest;
 import com.JobsNow.backend.request.RejectJobRequest;
 import com.JobsNow.backend.request.UpdateJobRequest;
-import com.JobsNow.backend.response.BaseResponse;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.JobService;
 import jakarta.validation.Valid;
@@ -25,17 +23,25 @@ public class JobController {
         return ResponseFactory.success( jobService.getAllJobs());
     }
 
-    @GetMapping ("/{jobId}")
+    @GetMapping("/{jobId}/related")
+    public ResponseEntity<?> getRelatedJobs(
+            @PathVariable Integer jobId,
+            @RequestParam(defaultValue = "8") int limit) {
+        return ResponseFactory.success(jobService.getRelatedJobs(jobId, limit));
+    }
+
+    @GetMapping("/{jobId}")
     public ResponseEntity<?> getJobById(@PathVariable Integer jobId) {
-        return ResponseFactory.success( jobService.getJobById(jobId));
+        return ResponseFactory.success(jobService.getJobById(jobId));
     }
 
     @GetMapping("/searchJobs")
     public ResponseEntity<?> searchJobs(
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) List<String> location,
-            @RequestParam(required = false) Integer categoryId) {
-        return ResponseFactory.success(jobService.searchJobs(keyword, location, categoryId));
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) String jobType,
+            @RequestParam(required = false) List<Integer> categoryIds) {
+        return ResponseFactory.success(jobService.searchJobs(keyword, location, jobType, categoryIds));
     }
 
     @GetMapping("/company/{companyId}")
@@ -74,5 +80,8 @@ public class JobController {
         return ResponseFactory.successMessage("Job rejected successfully");
     }
 
-
+    @GetMapping("/hot")
+    public ResponseEntity<?> getHotJobs(@RequestParam(defaultValue = "10") int limit) {
+        return ResponseFactory.success(jobService.getHotJobs(limit));
+    }
 }

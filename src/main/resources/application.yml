@@ -1,25 +1,40 @@
 server:
-  port: 8082
+  port: ${PORT:8082}
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/jobsnow_db
-    username: root
-    password: admin123
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jobnexus_db}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:admin123}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 0
+      connection-timeout: 30000
+      max-lifetime: 600000
+      idle-timeout: 120000
+      data-source-properties:
+        prepareThreshold: 0
+        preparedStatementCacheQueries: 0
+        preparedStatementCacheSizeMiB: 0
+        preferQueryMode: simple
+        autosave: conservative
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
   mail:
-    host: smtp.gmail.com
-    port: 587
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
           auth: true
+          connectiontimeout: ${MAIL_CONNECTION_TIMEOUT:5000}
+          timeout: ${MAIL_TIMEOUT:10000}
+          writetimeout: ${MAIL_WRITE_TIMEOUT:10000}
           starttls:
             enable: true
   servlet:
@@ -32,9 +47,14 @@ jwt:
   expiration: 86400000
 
 redis:
-  host: localhost
-  port: 6379
-  password: ${REDIS_PASSWORD}
+  url: ${REDIS_URL:}
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  username: ${REDIS_USERNAME:}
+  password: ${REDIS_PASSWORD:}
+
+google:
+  client-id: ${GOOGLE_CLIENT_ID}
 
 aws:
   s3:
@@ -43,3 +63,15 @@ aws:
     secretKey: ${AWS_SECRET_KEY}
     region: ${AWS_REGION}
     endpointUrl: ${AWS_S3_ENDPOINT_URL}
+openai:
+  api-key: ${OPENAI_API_KEY}
+  model: gpt-4o-mini
+  max-tokens: 3000
+  base-url: https://api.openai.com/v1
+
+vnpay:
+  url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+  tmn-code: ${VNPAY_TMN_CODE:2Y0P3N8L}
+  hash-secret: ${VNPAY_HASH_SECRET:1BX5VZOVDP8G19NJCYVC4OZW2V5XXLZG}
+  return-url: http://localhost:8082/payment/vnpay-return
+  ip-addr: 127.0.0.1

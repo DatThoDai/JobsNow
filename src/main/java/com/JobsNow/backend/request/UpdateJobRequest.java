@@ -35,8 +35,17 @@ public class UpdateJobRequest {
 
     private Integer categoryId;
     private Boolean isActive;
+    private String thumbnailUrl;
     private List<JobSkillItem> jobSkills;
     private List<Integer> majorIds;
+
+    private String applicationLanguage;
+
+    private String genderRequirement;
+
+    private Integer minAge;
+
+    private Integer maxAge;
 
     @Data
     public static class JobSkillItem {

@@ -33,4 +33,7 @@ public class Application {
     @ManyToOne
     @JoinColumn(name = "resume_id")
     private Resume resume;
+
+    @Column(name = "interview_details_html", columnDefinition = "TEXT")
+    private String interviewDetailsHtml;
 }

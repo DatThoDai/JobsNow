@@ -2,7 +2,9 @@ package com.JobsNow.backend.service.imp;
 
 import com.JobsNow.backend.dto.JobDTO;
 import com.JobsNow.backend.entity.*;
+import com.JobsNow.backend.entity.enums.ApplicationLanguage;
 import com.JobsNow.backend.entity.enums.EducationLevel;
+import com.JobsNow.backend.entity.enums.GenderRequirement;
 import com.JobsNow.backend.entity.enums.JobType;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
@@ -11,9 +13,13 @@ import com.JobsNow.backend.repositories.*;
 import com.JobsNow.backend.request.CreateJobRequest;
 import com.JobsNow.backend.request.RejectJobRequest;
 import com.JobsNow.backend.request.UpdateJobRequest;
+import com.JobsNow.backend.service.CompanyQuotaService;
+import com.JobsNow.backend.service.EmailService;
 import com.JobsNow.backend.service.JobService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,21 +27,27 @@ import java.time.LocalDateTime;
 import java.time.chrono.ChronoLocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class JobServiceImpl implements JobService {
     private final JobRepository jobRepository;
     private final CompanyRepository companyRepository;
     private final JobCategoryRepository jobCategoryRepository;
     private final SkillRepository skillRepository;
     private final JobSkillRepository jobSkillRepository;
+    private final JobBoostRepository jobBoostRepository;
     private final MajorRepository majorRepository;
+    private final EmailService emailService;
+    private final CompanyQuotaService companyQuotaService;
     @Transactional
     @Override
     public void createJob(CreateJobRequest request) {
         Company company = companyRepository.findById(request.getCompanyId())
                 .orElseThrow(() -> new NotFoundException("Company not found"));
+        companyQuotaService.consumeJobPost(company.getCompanyId());
         Job job = new Job();
         job.setCompany(company);
         job.setTitle(request.getTitle());
@@ -55,14 +67,40 @@ public class JobServiceImpl implements JobService {
         job.setLocation(request.getLocation());
         job.setDeadline(request.getDeadline());
         job.setPostedAt(LocalDateTime.now());
-        job.setIsActive(false);
         job.setIsDeleted(false);
-        job.setIsPending(true);
-        job.setIsApproved(false);
         job.setIsExpired(false);
+        if (request.getThumbnailUrl() != null && !request.getThumbnailUrl().isBlank()) {
+            job.setThumbnailUrl(request.getThumbnailUrl());
+        }
+        if (request.getIsActive() != null && request.getIsActive()) {
+            job.setIsActive(true);
+            job.setIsPending(false);
+            job.setIsApproved(true);
+        } else {
+            job.setIsActive(false);
+            job.setIsPending(true);
+            job.setIsApproved(false);
+        }
         if (request.getJobType() != null) {
             job.setJobType(JobType.valueOf(request.getJobType().toUpperCase()));
         }
+        if (request.getApplicationLanguage() != null && !request.getApplicationLanguage().isBlank()) {
+            try {
+                job.setApplicationLanguage(ApplicationLanguage.valueOf(request.getApplicationLanguage().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid application language");
+            }
+        }
+        if (request.getGenderRequirement() != null && !request.getGenderRequirement().isBlank()) {
+            try {
+                job.setGenderRequirement(GenderRequirement.valueOf(request.getGenderRequirement().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid gender requirement");
+            }
+        }
+        job.setMinAge(request.getMinAge());
+        job.setMaxAge(request.getMaxAge());
+        validateAgeRange(job.getMinAge(), job.getMaxAge());
         if (request.getCategoryId() != null) {
             JobCategory category = jobCategoryRepository.findById(request.getCategoryId())
                     .orElseThrow(() -> new NotFoundException("Category not found"));
@@ -87,7 +125,6 @@ public class JobServiceImpl implements JobService {
                 jobSkill.setLevel(skillItem.getLevel());
                 jobSkills.add(jobSkill);
             }
-            jobSkillRepository.saveAll(jobSkills);
             savedJob.setJobSkills(jobSkills);
         }
 
@@ -99,30 +136,66 @@ public class JobServiceImpl implements JobService {
                 majors.add(major);
             }
             savedJob.setMajors(majors);
-            jobRepository.save(savedJob);
         }
+        jobRepository.save(savedJob);
         int currentCount = company.getJobPostCount() != null ? company.getJobPostCount(): 0;
         company.setJobPostCount(currentCount + 1);
         companyRepository.save(company);
     }
 
+    private boolean isJobAvailable(Job job) {
+        return Boolean.TRUE.equals(job.getIsActive())
+                && Boolean.TRUE.equals(job.getIsApproved())
+                && !Boolean.TRUE.equals(job.getIsDeleted())
+                && !Boolean.TRUE.equals(job.getIsExpired());
+    }
+
     @Override
+    @Transactional
     public JobDTO getJobById(Integer jobId) {
+        Job job = jobRepository.findByIdWithCompanyAndSocials(jobId)
+                .orElseThrow(() -> new NotFoundException("Job not found"));
+
+        if (job.getViewCount() == null) {
+            job.setViewCount(1);
+        } else {
+            job.setViewCount(job.getViewCount() + 1);
+        }
+        jobRepository.save(job);
+
+        return enrichBoostStatus(JobMapper.toJobDTO(job));
+    }
+
+    private static void validateAgeRange(Integer minAge, Integer maxAge) {
+        if (minAge != null && maxAge != null && minAge > maxAge) {
+            throw new BadRequestException("minAge must be <= maxAge");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<JobDTO> getRelatedJobs(Integer jobId, int limit) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new NotFoundException("Job not found"));
-        return JobMapper.toJobDTO(job);
+        if (job.getCategory() == null) {
+            return new ArrayList<>();
+        }
+        int cap = Math.min(Math.max(limit, 1), 24);
+        List<Job> related = jobRepository.findRelatedByCategory(
+                job.getCategory().getId(),
+                jobId,
+                PageRequest.of(0, cap));
+        return related.stream().map(JobMapper::toJobDTO).map(this::enrichBoostStatus).toList();
     }
 
     @Override
     public List<JobDTO> getAllJobs() {
-        List<Job> jobs = jobRepository.findAll().stream()
-                .filter(job -> Boolean.TRUE.equals(job.getIsActive())
-                        && !Boolean.TRUE.equals(job.getIsDeleted())
-                        && Boolean.TRUE.equals(job.getIsApproved())
-                        && !Boolean.TRUE.equals(job.getIsExpired()))
+        List<Job> jobs = jobRepository.findByIsActiveTrueAndIsDeletedFalseOrderByFinalScoreDescPostedAtDesc().stream()
+                .filter(this::isJobAvailable)
                 .toList();
         return jobs.stream()
                 .map(JobMapper::toJobDTO)
+                .map(this::enrichBoostStatus)
                 .toList();
     }
 
@@ -131,6 +204,7 @@ public class JobServiceImpl implements JobService {
         List<Job> jobs = jobRepository.findByCompany_CompanyId(companyId);
         return jobs.stream()
                 .map(JobMapper::toJobDTO)
+                .map(this::enrichBoostStatus)
                 .toList();
     }
 
@@ -203,7 +277,6 @@ public class JobServiceImpl implements JobService {
                     jobSkill.setLevel(item.getLevel());
                     newJobSkills.add(jobSkill);
                 }
-                jobSkillRepository.saveAll(newJobSkills);
                 job.setJobSkills(newJobSkills);
             } else {
                 job.setJobSkills(new ArrayList<>());
@@ -225,8 +298,42 @@ public class JobServiceImpl implements JobService {
         if (request.getIsActive() != null) {
             job.setIsActive(request.getIsActive());
         }
-        job.setIsPending(true);
-        job.setIsApproved(false);
+        if (request.getThumbnailUrl() != null) {
+            job.setThumbnailUrl(request.getThumbnailUrl());
+        }
+        if (request.getApplicationLanguage() != null) {
+            if (request.getApplicationLanguage().isBlank()) {
+                job.setApplicationLanguage(null);
+            } else {
+                try {
+                    job.setApplicationLanguage(ApplicationLanguage.valueOf(request.getApplicationLanguage().toUpperCase()));
+                } catch (IllegalArgumentException e) {
+                    throw new BadRequestException("Invalid application language");
+                }
+            }
+        }
+        if (request.getGenderRequirement() != null) {
+            if (request.getGenderRequirement().isBlank()) {
+                job.setGenderRequirement(null);
+            } else {
+                try {
+                    job.setGenderRequirement(GenderRequirement.valueOf(request.getGenderRequirement().toUpperCase()));
+                } catch (IllegalArgumentException e) {
+                    throw new BadRequestException("Invalid gender requirement");
+                }
+            }
+        }
+        if (request.getMinAge() != null) {
+            job.setMinAge(request.getMinAge());
+        }
+        if (request.getMaxAge() != null) {
+            job.setMaxAge(request.getMaxAge());
+        }
+        validateAgeRange(job.getMinAge(), job.getMaxAge());
+        if (!Boolean.TRUE.equals(job.getIsApproved())) {
+            job.setIsPending(true);
+            job.setIsApproved(false);
+        }
         jobRepository.save(job);
     }
 
@@ -240,18 +347,35 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public List<JobDTO> searchJobs(String keyword, List<String> location, Integer categoryId) {
-        if (location != null && location.isEmpty()) {
-            location = null;
+    public void unpublishJobByAdmin(Integer jobId) {
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new NotFoundException("Job not found"));
+        job.setIsActive(false);
+        job.setIsPending(false);
+        job.setIsApproved(false);
+        jobRepository.save(job);
+    }
+
+    @Override
+    public List<JobDTO> searchJobs(String keyword, String location, String jobType, List<Integer> categoryIds) {
+        if (categoryIds != null && categoryIds.isEmpty()) {
+            categoryIds = null;
         }
-        List<Job> jobs = jobRepository.searchJobs(keyword, location, categoryId).stream()
-                .filter(job -> Boolean.TRUE.equals(job.getIsActive())
-                        && !Boolean.TRUE.equals(job.getIsDeleted())
-                        && Boolean.TRUE.equals(job.getIsApproved())
-                        && !Boolean.TRUE.equals(job.getIsExpired()))
+        JobType parsedJobType = null;
+        if (jobType != null && !jobType.isBlank()) {
+            try {
+                parsedJobType = JobType.valueOf(jobType.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid jobType");
+            }
+        }
+
+        List<Job> jobs = jobRepository.searchJobs(keyword, location, parsedJobType, categoryIds).stream()
+                .filter(this::isJobAvailable)
                 .toList();
         return jobs.stream()
                 .map(JobMapper::toJobDTO)
+                .map(this::enrichBoostStatus)
                 .toList();
     }
 
@@ -264,6 +388,14 @@ public class JobServiceImpl implements JobService {
         job.setIsActive(true);
         job.setNote(null);
         jobRepository.save(job);
+        try {
+            String toEmail = job.getCompany().getUser().getEmail();
+            if (toEmail != null && !toEmail.isBlank()) {
+                emailService.sendJobPostApprovedEmail(toEmail, job.getTitle(), job.getCompany().getCompanyName());
+            }
+        } catch (Exception e) {
+            log.error("Failed to send job approved email, jobId={}", jobId, e);
+        }
     }
 
     @Override
@@ -275,6 +407,32 @@ public class JobServiceImpl implements JobService {
         job.setIsActive(false);
         job.setNote(request.getReason());
         jobRepository.save(job);
+        try {
+            String toEmail = job.getCompany().getUser().getEmail();
+            if (toEmail != null && !toEmail.isBlank()) {
+                emailService.sendJobPostRejectedEmail(toEmail, job.getTitle(), job.getCompany().getCompanyName(), request.getReason());
+            }
+        } catch (Exception e) {
+            log.error("Failed to send job rejected email, jobId={}", request.getJobId(), e);
+        }
+    }
+
+    @Override
+    public List<JobDTO> getAllJobsForAdmin(String status) {
+        List<Job> all = jobRepository.findAll();
+        if (status != null && !status.isBlank()) {
+            String s = status.trim().toLowerCase();
+            if ("pending".equals(s)) {
+                all = all.stream().filter(job -> Boolean.TRUE.equals(job.getIsPending())).toList();
+            } else if ("approved".equals(s)) {
+                all = all.stream().filter(job -> Boolean.TRUE.equals(job.getIsApproved())).toList();
+            } else if ("rejected".equals(s)) {
+                all = all.stream()
+                        .filter(job -> !Boolean.TRUE.equals(job.getIsApproved()) && !Boolean.TRUE.equals(job.getIsPending()))
+                        .toList();
+            }
+        }
+        return all.stream().map(JobMapper::toJobDTO).map(this::enrichBoostStatus).toList();
     }
 
     @Scheduled(cron = "0 0 0 * * ?")
@@ -288,5 +446,74 @@ public class JobServiceImpl implements JobService {
                 jobRepository.save(job);
             }
         }
+    }
+
+    @Override
+    public List<JobDTO> getHotJobs(int limit) {
+        var activeBoosts = jobBoostRepository.findByIsActiveTrue().stream()
+                .collect(Collectors.toMap(
+                        b -> b.getJob().getJobId(),
+                        b -> b,
+                        (a, b) -> a.getEndAt().isAfter(b.getEndAt()) ? a : b
+                ));
+
+        List<Job> hotJobs = jobRepository.findByIsActiveTrueAndIsDeletedFalseOrderByFinalScoreDescPostedAtDesc().stream()
+            .sorted((a, b) -> {
+                double bScore = b.getFinalScore() != null ? b.getFinalScore() : 0;
+                double aScore = a.getFinalScore() != null ? a.getFinalScore() : 0;
+                int scoreCompare = Double.compare(bScore, aScore);
+                if (scoreCompare != 0) {
+                return scoreCompare;
+                }
+                return Integer.compare(
+                    resolvePriorityLevel(activeBoosts.get(b.getJobId())),
+                    resolvePriorityLevel(activeBoosts.get(a.getJobId()))
+                );
+            })
+                .limit(limit)
+                .toList();
+        return hotJobs.stream().map(JobMapper::toJobDTO).map(this::enrichBoostStatus).collect(Collectors.toList());
+    }
+
+    private int resolvePriorityLevel(JobBoost boost) {
+        if (boost == null || boost.getPlan() == null) {
+            return 0;
+        }
+        Integer priority = boost.getPlan().getPriorityLevel();
+        if (priority != null) {
+            return priority;
+        }
+        if (boost.getPlan().getType() == null) {
+            return 0;
+        }
+        return switch (boost.getPlan().getType()) {
+            case VIP -> 3;
+            case PREMIUM -> 2;
+            case PLUS -> 1;
+            default -> 0;
+        };
+    }
+
+    private JobDTO enrichBoostStatus(JobDTO dto) {
+        if (dto == null || dto.getJobId() == null) {
+            return dto;
+        }
+        var activeBoostOpt = jobBoostRepository.findTopByJob_JobIdAndIsActiveTrueOrderByEndAtDesc(dto.getJobId());
+        if (activeBoostOpt.isEmpty()) {
+            dto.setBoostActive(false);
+            dto.setActiveBoostPlanType(null);
+            dto.setActiveBoostEndAt(null);
+            return dto;
+        }
+
+        var activeBoost = activeBoostOpt.get();
+        dto.setBoostActive(Boolean.TRUE.equals(activeBoost.getIsActive()));
+        dto.setActiveBoostEndAt(activeBoost.getEndAt());
+        dto.setActiveBoostPlanType(
+                activeBoost.getPlan() != null && activeBoost.getPlan().getType() != null
+                        ? activeBoost.getPlan().getType().name()
+                        : null
+        );
+        return dto;
     }
 }
