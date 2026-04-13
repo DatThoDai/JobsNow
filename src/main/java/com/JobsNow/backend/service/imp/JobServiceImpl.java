@@ -419,7 +419,7 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public List<JobDTO> getAllJobsForAdmin(String status) {
-        List<Job> all = jobRepository.findAll();
+        List<Job> all = jobRepository.findAllByOrderByPostedAtDesc();
         if (status != null && !status.isBlank()) {
             String s = status.trim().toLowerCase();
             if ("pending".equals(s)) {
