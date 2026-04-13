@@ -7,8 +7,6 @@ import com.JobsNow.backend.request.ResendOtpRequest;
 import com.JobsNow.backend.request.SendOtpRequest;
 import com.JobsNow.backend.request.VerifyLoginOtpRequest;
 import com.JobsNow.backend.request.VerifyOtpRequest;
-import com.JobsNow.backend.response.AuthResponse;
-import com.JobsNow.backend.response.BaseResponse;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;

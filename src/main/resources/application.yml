@@ -1,5 +1,5 @@
 server:
-  port: 8082
+  port: ${PORT:8082}
 
 spring:
   datasource:
@@ -24,14 +24,17 @@ spring:
     hibernate:
       ddl-auto: update
   mail:
-    host: smtp.gmail.com
-    port: 587
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
           auth: true
+          connectiontimeout: ${MAIL_CONNECTION_TIMEOUT:5000}
+          timeout: ${MAIL_TIMEOUT:10000}
+          writetimeout: ${MAIL_WRITE_TIMEOUT:10000}
           starttls:
             enable: true
   servlet:
@@ -44,9 +47,11 @@ jwt:
   expiration: 86400000
 
 redis:
-  host: localhost
-  port: 6379
-  password: ${REDIS_PASSWORD}
+  url: ${REDIS_URL:}
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  username: ${REDIS_USERNAME:}
+  password: ${REDIS_PASSWORD:}
 
 google:
   client-id: ${GOOGLE_CLIENT_ID}

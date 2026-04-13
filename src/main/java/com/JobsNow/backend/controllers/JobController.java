@@ -1,10 +1,8 @@
 package com.JobsNow.backend.controllers;
 
-import com.JobsNow.backend.dto.JobDTO;
 import com.JobsNow.backend.request.CreateJobRequest;
 import com.JobsNow.backend.request.RejectJobRequest;
 import com.JobsNow.backend.request.UpdateJobRequest;
-import com.JobsNow.backend.response.BaseResponse;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.JobService;
 import jakarta.validation.Valid;
