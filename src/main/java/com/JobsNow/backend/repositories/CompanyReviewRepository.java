@@ -16,8 +16,13 @@ public interface CompanyReviewRepository extends JpaRepository<CompanyReview, In
             CompanyReviewStatus status,
             Pageable pageable
     );
+    Page<CompanyReview> findByStatusOrderByCreatedAtDesc(
+            CompanyReviewStatus status,
+            Pageable pageable
+    );
 
     long countByCompanyCompanyIdAndStatus(Integer companyId, CompanyReviewStatus status);
+    long countByStatus(CompanyReviewStatus status);
 
     @Query("""
         select coalesce(avg(r.rating), 0)

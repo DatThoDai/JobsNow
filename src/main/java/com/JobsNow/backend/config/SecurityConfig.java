@@ -61,6 +61,12 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/company/*/followers").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.POST, "/company/me").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/company/update/**").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/company/me/posts/**").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.POST, "/company/me/posts").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.PUT, "/company/me/posts/**").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/company/admin/posts/**").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.PUT, "/company/admin/posts/**").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.GET, "/handbook/**").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/company/all", "/company/search").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/company/{companyId}").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/company/{companyId}/follow").authenticated();
@@ -78,8 +84,8 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/profile/all").hasAnyRole("ADMIN", "COMPANY");
                     request.requestMatchers("/major/**").hasRole("ADMIN");
                     request.requestMatchers("/admin/**").hasRole("ADMIN");
-                    request.requestMatchers(HttpMethod.GET, "/company/recruiter/reviews/**").hasRole("COMPANY");
-                    request.requestMatchers(HttpMethod.PUT, "/company/recruiter/reviews/**").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/company/admin/reviews/**").hasRole("ADMIN");
+                    request.requestMatchers(HttpMethod.PUT, "/company/admin/reviews/**").hasRole("ADMIN");
                     // COMPANY
                     request.requestMatchers("/job/create").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/job/{jobId}").hasRole("COMPANY");

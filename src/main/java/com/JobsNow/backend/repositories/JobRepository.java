@@ -30,6 +30,7 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
     @Query("SELECT j FROM Job j WHERE j.category.id = :categoryId AND j.isActive = true AND j.isDeleted = false")
     List<Job> findByCategoryId(@Param("categoryId") Integer categoryId);
 
+    List<Job> findAllByOrderByPostedAtDesc();
     List<Job> findByIsActiveTrueAndIsDeletedFalse();
     List<Job> findByIsActiveTrueAndIsDeletedFalseOrderByFinalScoreDescPostedAtDesc();
     @Query("SELECT DISTINCT j FROM Job j " +
