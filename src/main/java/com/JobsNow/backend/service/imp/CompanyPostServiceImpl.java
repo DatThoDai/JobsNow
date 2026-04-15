@@ -54,6 +54,8 @@ public class CompanyPostServiceImpl implements CompanyPostService {
             CompanyPostStatus.PUBLISHED,
             CompanyPostStatus.REJECTED
     );
+    private static final String ROLE_JOBSEEKER = "ROLE_JOBSEEKER";
+    private static final String NOTIFICATION_TYPE_JOB_POST = "JOB_POST";
 
     private Company requireCompanyForRecruiter(String email) {
         User user = userRepository.findByEmail(email)
@@ -219,6 +221,7 @@ public class CompanyPostServiceImpl implements CompanyPostService {
         post.setRejectedAt(null);
         post.setUpdatedAt(LocalDateTime.now());
         companyPostRepository.save(post);
+        broadcastPublishedPostNotificationToJobSeekers(post);
     }
 
     @Override
@@ -357,6 +360,32 @@ public class CompanyPostServiceImpl implements CompanyPostService {
     private static String truncate(String s, int max) {
         if (s == null) return "";
         return s.length() <= max ? s : s.substring(0, max) + "…";
+    }
+
+    private void broadcastPublishedPostNotificationToJobSeekers(CompanyPost post) {
+        Company company = post.getCompany();
+        String companyName = company != null ? company.getCompanyName() : "Công ty";
+        String content = String.format(
+                Locale.ROOT,
+                "%s vừa đăng bài mới: \"%s\"",
+                companyName,
+                truncate(post.getTitle(), 120)
+        );
+
+        List<User> jobSeekers = userRepository.findByRole_RoleName(ROLE_JOBSEEKER);
+        for (User jobSeeker : jobSeekers) {
+            CreateNotificationRequest noti = CreateNotificationRequest.builder()
+                    .userId(jobSeeker.getUserId())
+                    .applicationId(null)
+                    .content(content)
+                    .type(NOTIFICATION_TYPE_JOB_POST)
+                    .build();
+            NotificationResponse nr = notificationService.createNotification(noti);
+            messagingTemplate.convertAndSend(
+                    JobsNowConstant.WS_TOPIC_NOTIFICATION + jobSeeker.getUserId(),
+                    nr
+            );
+        }
     }
 
     private CompanyPostMineResponse toMine(CompanyPost p) {
