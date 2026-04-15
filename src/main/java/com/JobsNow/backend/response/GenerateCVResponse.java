@@ -11,6 +11,7 @@ public class GenerateCVResponse {
     private String skillsSection;
     private List<String> certifications;
     private List<ProjectSection> projects;
+    private String suggestedTemplateKey;
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class ExperienceSection {

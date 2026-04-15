@@ -368,38 +368,50 @@ public class AICVServiceImpl implements AICVService {
                 ? "Vietnamese" : "English";
 
         String systemPrompt = """
-            You are a professional CV writer with expertise across ALL industries.
-            Write a polished, ATS-optimized CV based on the user's information.
-            Adapt your writing style and keywords to match the specific industry.
-            Return ONLY valid JSON (no markdown, no code blocks, no explanation).
+            You are an expert Executive Resume Writer and Career Coach.
+            Your task is to craft a polished, ATS-optimized CV based on the user's provided input.
             Write the entire CV content in %s.
+            Return ONLY valid JSON (no markdown, no code blocks, no explanation).
     
-            CRITICAL RULES:
-            - ONLY use information provided by the user. Do NOT invent any data.
-            - If a section has no data, return an empty array [] or empty string "".
-            - Do NOT create fake company names, schools, certifications, or projects.
-            - You MAY improve wording/phrasing of PROVIDED information.
-            - STRICT FACTUAL MODE: do not infer, estimate, extrapolate, or assume any metrics, durations, tools, achievements, or responsibilities.
-            - If a number/metric is not explicitly provided, do not create it.
+            CRITICAL GUIDELINES:
+            1. CAREER TRANSITION HANDLING: If the user's base profile (e.g., IT Developer) is completely different from their "Target Job" (e.g., Marketing):
+               - DO NOT delete their employment history (Experiences) or Education. We must avoid creating gaps in their resume.
+               - INSTEAD, REFRAME the bullet points of unrelated past jobs to focus heavily on "Transferable Skills" (e.g., agile project management, cross-functional collaboration, data analysis, problem-solving, client communication) rather than deep technical jargon.
+               - You MAY filter out completely irrelevant hard skills (e.g., specific programming languages) from the "Skills" list to make room for target-relevant skills.
+            2. ADDITIONAL INFORMATION PRIORITY: The "Additional Information" field contains the user's most recent updates. You MUST extract skills and objective goals from this text and seamlessly integrate them into the Summary and Skills sections.
+            3. ABSOLUTE ZERO HALLUCINATION MODE:
+               - The "experiences" array MUST ONLY contain entries from the "Work Experience" section of the input data. If the input has 2 work experiences, return EXACTLY 2.
+               - NEVER create, fabricate, or invent a new work experience entry. Not even from projects, additional info, or assumptions.
+               - NEVER invent dates, metrics (e.g. "10,000 reach", "2,000 followers"), or company names.
+               - Projects MUST stay in the "projects" array. Do NOT promote them to "experiences".
+               - If a date is not in the input, leave the duration field as an empty string "".
+            4. If a section has no relevant data, return an empty array [] or empty string "".
             """.formatted(lang);
 
 
         String userPrompt = """
-            Based on the following information, write a professional CV:
+            Based on the following input data, generate the professional CV JSON:
             
             %s
             
-            IMPORTANT RULES:
-            - Use action verbs appropriate for the industry (not just tech verbs)
-            - Keep every statement strictly tied to explicit input facts
-            - Make the summary 2-3 sentences highlighting key strengths
-            - Categorize skills by type (Technical, Soft Skills, Tools, etc.)
-            - Keep bullet points concise (1-2 lines each)
-            - Do NOT invent information not provided
-            - Do NOT add inferred metrics or estimated numbers
+            FORMATTING RULES:
+            - Summary: Create an engaging 2-3 sentence paragraph incorporating the "Additional Information" and highlighting how their past background + new skills make them a unique fit for the "Target Job".
+            - Skills: Group logically. Ensure missing skills mentioned in "Additional Info" are added to this list! Filter out hardcore technical skills that are completely useless for the Target Job.
+            - Experience: ONLY return the EXACT same number of work experience entries as in the input. Reframe bullet points to highlight transferable skills. Do NOT add new entries.
+            - Projects: Keep them as projects. Do NOT convert them into fake work experiences.
+            - Target Template: Analyze the user's Target Job and Industry, then suggest ONE of the following template keys. (Pick the most suitable one):
+              1. 'cvhay-automotive' (For Mechanics, Automotive, Engineering)
+              2. 'cvhay-customer-service' (For Customer Service, Support)
+              3. 'cvhay-student' (For Interns, Fresher, Students)
+              4. 'cvhay-management' (For Managers, Leads, Directors)
+              5. 'cvhay-media' (For Marketing, PR, Media, Content)
+              6. 'cvhay-it-software' (For IT, Software Developers, Data)
+              7. 'cvhay-sales' (For Sales, Business Development)
+              8. 'cvhay-industry-safety' (Default fallback for other general industries)
             
-            Return ONLY this JSON:
+            Return ONLY this JSON strictly:
             {
+              "suggestedTemplateKey": "<the chosen template key>",
               "summary": "<professional summary 2-3 sentences>",
               "experiences": [
                 {
