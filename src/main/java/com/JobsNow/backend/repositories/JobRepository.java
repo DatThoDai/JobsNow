@@ -56,6 +56,7 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
     );
 
     Long countByIsApprovedFalse();
+    long countByIsActiveTrueAndIsDeletedFalseAndIsApprovedTrue();
     @Query("SELECT j.company.companyName, COUNT(j) FROM Job j " +
             "WHERE j.postedAt BETWEEN :start AND :end " +
             "GROUP BY j.company.companyName ORDER BY COUNT(j) DESC")
