@@ -4,6 +4,7 @@ import com.JobsNow.backend.dto.CompanyDTO;
 import com.JobsNow.backend.request.CreateCompanyRequest;
 import com.JobsNow.backend.dto.CompanyImageDTO;
 import com.JobsNow.backend.request.UpdateCompanyRequest;
+import com.JobsNow.backend.response.CompanyDashboardMetricsResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -24,4 +25,12 @@ public interface CompanyService {
     void deleteCompanyImage(Integer imageId);
     List<CompanyImageDTO> getCompanyImages(Integer companyId);
     Long getFollowerCount(Integer companyId);
+    CompanyDashboardMetricsResponse getMyDashboardMetrics(
+            String email,
+            String preset,
+            String from,
+            String to,
+            String timezone,
+            boolean comparePrevious
+    );
 }

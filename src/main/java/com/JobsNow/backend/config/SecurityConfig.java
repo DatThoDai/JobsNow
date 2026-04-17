@@ -58,6 +58,7 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.PUT, "/industry/update").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.DELETE, "/industry/delete/**").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.GET, "/company/me").hasRole("COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/company/me/dashboard-metrics").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.GET, "/company/*/followers").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.POST, "/company/me").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/company/update/**").hasRole("COMPANY");
