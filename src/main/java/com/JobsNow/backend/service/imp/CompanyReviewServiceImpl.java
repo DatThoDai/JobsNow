@@ -104,32 +104,21 @@ public class CompanyReviewServiceImpl implements CompanyReviewService {
     }
 
     @Override
-    public CompanyReviewListResponse getMyCompanyPendingReviews(String email, int page, int limit) {
-        User recruiter = userRepository.findByEmail(email)
-                .orElseThrow(() -> new NotFoundException("User not found"));
-        Company company = companyRepository.findByUser_UserId(recruiter.getUserId())
-                .orElseThrow(() -> new NotFoundException("Company not found"));
-
+    public CompanyReviewListResponse getPendingReviewsForAdmin(int page, int limit) {
         int safePage = Math.max(page, 1);
         int safeLimit = Math.max(limit, 1);
-        Integer companyId = company.getCompanyId();
 
-        Page<CompanyReview> reviewPage = companyReviewRepository.findByCompanyCompanyIdAndStatusOrderByCreatedAtDesc(
-                companyId,
+        Page<CompanyReview> reviewPage = companyReviewRepository.findByStatusOrderByCreatedAtDesc(
                 CompanyReviewStatus.PENDING,
                 PageRequest.of(safePage - 1, safeLimit)
         );
 
-        long totalCount = companyReviewRepository.countByCompanyCompanyIdAndStatus(companyId, CompanyReviewStatus.PENDING);
-        Double avgRating = companyReviewRepository.getAverageRatingByCompanyIdAndStatus(
-                companyId,
-                CompanyReviewStatus.APPROVED
-        );
+        long totalCount = companyReviewRepository.countByStatus(CompanyReviewStatus.PENDING);
 
         return CompanyReviewListResponse.builder()
                 .items(reviewPage.getContent().stream().map(this::toItemResponse).toList())
                 .totalCount(totalCount)
-                .averageRating(avgRating == null ? 0d : avgRating)
+                .averageRating(0d)
                 .page(safePage)
                 .limit(safeLimit)
                 .hasNext(reviewPage.hasNext())
@@ -137,37 +126,21 @@ public class CompanyReviewServiceImpl implements CompanyReviewService {
     }
 
     @Override
-    public void approveReview(Integer reviewId, String email) {
-        Integer recruiterCompanyId = getRecruiterCompanyId(email);
+    public void approveReviewByAdmin(Integer reviewId) {
         CompanyReview review = companyReviewRepository.findById(reviewId)
                 .orElseThrow(() -> new NotFoundException("Review not found"));
-        if (!review.getCompany().getCompanyId().equals(recruiterCompanyId)) {
-            throw new BadRequestException("You can only moderate reviews of your company");
-        }
         review.setStatus(CompanyReviewStatus.APPROVED);
         review.setUpdatedAt(LocalDateTime.now());
         companyReviewRepository.save(review);
     }
 
     @Override
-    public void rejectReview(Integer reviewId, String email) {
-        Integer recruiterCompanyId = getRecruiterCompanyId(email);
+    public void rejectReviewByAdmin(Integer reviewId) {
         CompanyReview review = companyReviewRepository.findById(reviewId)
                 .orElseThrow(() -> new NotFoundException("Review not found"));
-        if (!review.getCompany().getCompanyId().equals(recruiterCompanyId)) {
-            throw new BadRequestException("You can only moderate reviews of your company");
-        }
         review.setStatus(CompanyReviewStatus.REJECTED);
         review.setUpdatedAt(LocalDateTime.now());
         companyReviewRepository.save(review);
-    }
-
-    private Integer getRecruiterCompanyId(String email) {
-        User recruiter = userRepository.findByEmail(email)
-                .orElseThrow(() -> new NotFoundException("User not found"));
-        Company company = companyRepository.findByUser_UserId(recruiter.getUserId())
-                .orElseThrow(() -> new NotFoundException("Company not found"));
-        return company.getCompanyId();
     }
 
     private CompanyReviewItemResponse toItemResponse(CompanyReview review) {

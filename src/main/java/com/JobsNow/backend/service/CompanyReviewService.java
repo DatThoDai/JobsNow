@@ -6,7 +6,7 @@ import com.JobsNow.backend.response.CompanyReviewListResponse;
 public interface CompanyReviewService {
     void createReview(Integer companyId, String email, CreateCompanyReviewRequest request);
     CompanyReviewListResponse getApprovedReviews(Integer companyId, int page, int limit);
-    CompanyReviewListResponse getMyCompanyPendingReviews(String email, int page, int limit);
-    void approveReview(Integer reviewId, String email);
-    void rejectReview(Integer reviewId, String email);
+    CompanyReviewListResponse getPendingReviewsForAdmin(int page, int limit);
+    void approveReviewByAdmin(Integer reviewId);
+    void rejectReviewByAdmin(Integer reviewId);
 }

@@ -33,24 +33,23 @@ public class CompanyReviewController {
         return ResponseFactory.successMessage("Review submitted, waiting for approval");
     }
 
-    @GetMapping("/recruiter/reviews/pending")
-    public ResponseEntity<?> getRecruiterPendingReviews(
-            Authentication auth,
+    @GetMapping("/admin/reviews/pending")
+    public ResponseEntity<?> getAdminPendingReviews(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int limit
     ) {
-        return ResponseFactory.success(companyReviewService.getMyCompanyPendingReviews(auth.getName(), page, limit));
+        return ResponseFactory.success(companyReviewService.getPendingReviewsForAdmin(page, limit));
     }
 
-    @PutMapping("/recruiter/reviews/{reviewId}/approve")
-    public ResponseEntity<?> approveReview(Authentication auth, @PathVariable Integer reviewId) {
-        companyReviewService.approveReview(reviewId, auth.getName());
+    @PutMapping("/admin/reviews/{reviewId}/approve")
+    public ResponseEntity<?> approveReview(@PathVariable Integer reviewId) {
+        companyReviewService.approveReviewByAdmin(reviewId);
         return ResponseFactory.successMessage("Review approved");
     }
 
-    @PutMapping("/recruiter/reviews/{reviewId}/reject")
-    public ResponseEntity<?> rejectReview(Authentication auth, @PathVariable Integer reviewId) {
-        companyReviewService.rejectReview(reviewId, auth.getName());
+    @PutMapping("/admin/reviews/{reviewId}/reject")
+    public ResponseEntity<?> rejectReview(@PathVariable Integer reviewId) {
+        companyReviewService.rejectReviewByAdmin(reviewId);
         return ResponseFactory.successMessage("Review rejected");
     }
 }

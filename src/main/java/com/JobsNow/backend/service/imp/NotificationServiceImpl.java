@@ -41,13 +41,18 @@ public class NotificationServiceImpl implements NotificationService {
     public NotificationResponse createNotification(CreateNotificationRequest request) {
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new NotFoundException("User not found"));
-        Application application = applicationRepository.findById(request.getApplicationId())
-                .orElseThrow(() -> new NotFoundException("Application not found"));
+        Application application = null;
+        if (request.getApplicationId() != null) {
+            application = applicationRepository.findById(request.getApplicationId())
+                    .orElseThrow(() -> new NotFoundException("Application not found"));
+        }
+        String type = request.getType() != null ? request.getType() : "SYSTEM";
         Notification notification = Notification.builder()
                 .user(user)
                 .application(application)
                 .content(request.getContent())
                 .isRead(false)
+                .type(type)
                 .createdAt(LocalDateTime.now())
                 .build();
         notificationRepository.save(notification);

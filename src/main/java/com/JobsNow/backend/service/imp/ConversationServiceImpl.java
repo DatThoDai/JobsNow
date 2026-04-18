@@ -18,6 +18,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -40,6 +41,19 @@ public class ConversationServiceImpl implements ConversationService {
                 .orElseThrow(() -> new NotFoundException("Candidate not found"));
         User employer = userRepository.findById(employerId)
                 .orElseThrow(() -> new NotFoundException("Employer not found"));
+
+                if (candidateId.equals(employerId)) {
+                        throw new BadRequestException("Conversation participants must be different");
+                }
+
+                if (!"ROLE_JOBSEEKER".equals(candidate.getRole().getRoleName())) {
+                        throw new BadRequestException("Candidate must be a job seeker");
+                }
+
+                if (!"ROLE_COMPANY".equals(employer.getRole().getRoleName())) {
+                        throw new BadRequestException("Employer must be a company user");
+                }
+
         var existing = conversationRepository.findByCandidateUserAndEmployerUser(candidate, employer);
         if (existing.isPresent()) {
                         Conversation conv = existing.get();
@@ -62,6 +76,43 @@ public class ConversationServiceImpl implements ConversationService {
         return buildConversationResponse(saved, candidateId);
     }
 
+        @Override
+        public ConversationResponse createSupportConversation(String requesterEmail) {
+                User requester = userRepository.findByEmail(requesterEmail)
+                                .orElseThrow(() -> new NotFoundException("User not found"));
+
+                if ("ROLE_ADMIN".equals(requester.getRole().getRoleName())) {
+                        throw new BadRequestException("Admin account does not need support conversation");
+                }
+
+                User admin = userRepository.findByRole_RoleName("ROLE_ADMIN").stream()
+                                .min(Comparator.comparing(User::getUserId))
+                                .orElseThrow(() -> new NotFoundException("Admin not found"));
+
+                var existing = conversationRepository.findByParticipants(requester, admin);
+                if (existing.isPresent()) {
+                        Conversation conv = existing.get();
+                        conv.setDeletedByCandidate(false);
+                        conv.setDeletedByEmployer(false);
+                        conversationRepository.save(conv);
+                        publishConversationData(conv);
+                        return buildConversationResponse(conv, requester.getUserId());
+                }
+
+                Conversation conversation = Conversation.builder()
+                                .candidateUser(requester)
+                                .employerUser(admin)
+                                .createdAt(LocalDateTime.now())
+                                .lastMessageAt(LocalDateTime.now())
+                                .unreadCountCandidate(0)
+                                .unreadCountEmployer(0)
+                                .build();
+
+                Conversation saved = conversationRepository.save(conversation);
+                publishConversationData(saved);
+                return buildConversationResponse(saved, requester.getUserId());
+        }
+
     @Override
     public List<ConversationResponse> getUserConversations(Integer userId) {
         User user = userRepository.findById(userId)
@@ -72,15 +123,26 @@ public class ConversationServiceImpl implements ConversationService {
             conversations = conversationRepository.findByCandidateUser(user);
         } else if ("ROLE_COMPANY".equals(roleName)) {
             conversations = conversationRepository.findByEmployerUser(user);
+                } else if ("ROLE_ADMIN".equals(roleName)) {
+                        conversations = conversationRepository.findByCandidateUserOrEmployerUser(user, user);
         } else {
             throw new BadRequestException("Unsupported role for chat");
         }
         return conversations.stream()
                                 .filter(c -> {
-                                        if ("ROLE_JOBSEEKER".equals(roleName)) {
+                                                                                boolean isCandidate = c.getCandidateUser().getUserId().equals(userId);
+                                                                                if (isCandidate) {
                                                 return !Boolean.TRUE.equals(c.getDeletedByCandidate());
                                         }
                                         return !Boolean.TRUE.equals(c.getDeletedByEmployer());
+                                })
+                                .sorted((a, b) -> {
+                                        LocalDateTime t1 = a.getLastMessageAt();
+                                        LocalDateTime t2 = b.getLastMessageAt();
+                                        if (t1 == null && t2 == null) return 0;
+                                        if (t1 == null) return 1;
+                                        if (t2 == null) return -1;
+                                        return t2.compareTo(t1);
                                 })
                 .map(c -> buildConversationResponse(c, userId))
                 .collect(Collectors.toList());

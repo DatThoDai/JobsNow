@@ -20,7 +20,7 @@ public class Notification {
     private Boolean isRead;
 
     @ManyToOne
-    @JoinColumn(name = "application_id")
+    @JoinColumn(name = "application_id", nullable = true)
     private Application application;
 
     @ManyToOne(fetch = FetchType.LAZY)

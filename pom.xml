@@ -141,6 +141,12 @@
 			<version>5.5.1</version>
 			<scope>compile</scope>
 		</dependency>
+		<dependency>
+			<groupId>com.algolia</groupId>
+			<artifactId>algoliasearch</artifactId>
+			<version>4.36.2</version>
+			<scope>compile</scope>
+		</dependency>
 	</dependencies>
 
 	<build>

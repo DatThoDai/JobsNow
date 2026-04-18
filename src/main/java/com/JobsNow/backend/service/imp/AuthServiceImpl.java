@@ -305,13 +305,14 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public AuthResponse loginWithGoogle(String idToken) {
+    public AuthResponse loginWithGoogle(String idToken, String roleName) {
         GoogleTokenVerifier.GoogleUserInfo info = googleTokenVerifier.verify(idToken);
 
         User user = userRepository.findByEmail(info.getEmail()).orElse(null);
 
         if (user == null) {
-            Role role = roleRepository.findByRoleName("ROLE_JOBSEEKER")
+            String normalizedRole = "ROLE_COMPANY".equals(roleName) ? "ROLE_COMPANY" : "ROLE_JOBSEEKER";
+            Role role = roleRepository.findByRoleName(normalizedRole)
                     .orElseThrow(() -> new BadRequestException("Role not found"));
 
             user = new User();
@@ -323,14 +324,39 @@ public class AuthServiceImpl implements AuthService {
             user.setPasswordHash(null);
             userRepository.save(user);
 
-            JobSeekerProfile profile = new JobSeekerProfile();
-            profile.setUser(user);
-            profile.setAvatarUrl(info.getPicture() != null ? info.getPicture() : DEFAULT_AVATAR_URL);
-            jobSeekerProfileRepository.save(profile);
-            candidateQuotaService.ensureDefaultQuota(user.getUserId(), 0, 3);
+            if ("ROLE_COMPANY".equals(normalizedRole)) {
+                Company company = new Company();
+                company.setUser(user);
+                company.setCompanyName(generateCompanyName(info.getName(), info.getEmail()));
+                company.setLogoUrl(info.getPicture() != null ? info.getPicture() : DEFAULT_AVATAR_URL);
+                company.setIsVerified(true);
+                company.setJobPostCount(0);
+                companyRepository.save(company);
+                companyQuotaService.ensureDefaultQuota(company.getCompanyId(), 5);
+            } else {
+                JobSeekerProfile profile = new JobSeekerProfile();
+                profile.setUser(user);
+                profile.setAvatarUrl(info.getPicture() != null ? info.getPicture() : DEFAULT_AVATAR_URL);
+                jobSeekerProfileRepository.save(profile);
+                candidateQuotaService.ensureDefaultQuota(user.getUserId(), 0, 3);
+            }
         }
 
         return buildAuthResponse(user);
+    }
+
+    private String generateCompanyName(String googleName, String email) {
+        String baseName = (googleName != null && !googleName.isBlank())
+                ? googleName.trim()
+                : email.substring(0, email.indexOf('@'));
+
+        String candidate = baseName;
+        int suffix = 1;
+        while (companyRepository.existsByCompanyName(candidate)) {
+            suffix++;
+            candidate = baseName + " " + suffix;
+        }
+        return candidate;
     }
 
     private void assertAccountActive(User user) {

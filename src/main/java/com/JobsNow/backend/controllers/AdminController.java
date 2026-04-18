@@ -6,6 +6,7 @@ import com.JobsNow.backend.repositories.JobRepository;
 import com.JobsNow.backend.repositories.UserRepository;
 import com.JobsNow.backend.request.UpdateAdminUserRequest;
 import com.JobsNow.backend.response.ResponseFactory;
+import com.JobsNow.backend.service.AdminDashboardMetricsService;
 import com.JobsNow.backend.service.AdminUserService;
 import com.JobsNow.backend.service.ApplicationService;
 import com.JobsNow.backend.service.JobService;
@@ -30,6 +31,7 @@ public class AdminController {
     private final ApplicationService applicationService;
     private final JobService jobService;
     private final AdminUserService adminUserService;
+    private final AdminDashboardMetricsService adminDashboardMetricsService;
 
     @GetMapping("/users")
     public ResponseEntity<?> listUsers() {
@@ -71,6 +73,23 @@ public class AdminController {
                 .pendingApprovals(jobRepository.countByIsApprovedFalse())
                 .build();
         return ResponseFactory.success(stats);
+    }
+
+    @GetMapping("/dashboard-metrics")
+    public ResponseEntity<?> getDashboardMetrics(
+            @RequestParam(defaultValue = "month") String preset,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(defaultValue = "Asia/Ho_Chi_Minh") String tz,
+            @RequestParam(defaultValue = "true") boolean comparePrevious
+    ) {
+        return ResponseFactory.success(adminDashboardMetricsService.getMetrics(
+                preset,
+                from,
+                to,
+                tz,
+                comparePrevious
+        ));
     }
 
     @GetMapping("/applications/recent")

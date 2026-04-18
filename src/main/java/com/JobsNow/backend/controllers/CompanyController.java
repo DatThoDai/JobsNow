@@ -27,6 +27,25 @@ public class CompanyController {
         return ResponseFactory.success(companyService.getMyCompany(email));
     }
 
+    @GetMapping("/me/dashboard-metrics")
+    public ResponseEntity<?> getMyDashboardMetrics(
+            org.springframework.security.core.Authentication auth,
+            @RequestParam(defaultValue = "month") String preset,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(defaultValue = "Asia/Ho_Chi_Minh") String tz,
+            @RequestParam(defaultValue = "true") boolean comparePrevious
+    ) {
+        return ResponseFactory.success(companyService.getMyDashboardMetrics(
+                auth.getName(),
+                preset,
+                from,
+                to,
+                tz,
+                comparePrevious
+        ));
+    }
+
     @PostMapping("/me")
     public ResponseEntity<?> createMyCompany(
             org.springframework.security.core.Authentication auth,

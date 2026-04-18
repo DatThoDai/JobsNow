@@ -9,6 +9,7 @@ import java.util.List;
 
 public interface ConversationService {
     ConversationResponse createConversation(Integer candidateId, Integer employerId);
+    ConversationResponse createSupportConversation(String requesterEmail);
     List<ConversationResponse> getUserConversations(Integer userId);
     ConversationResponse getConversationById(Integer conversationId, Integer userId);
     MessageResponse sendTextMessage(SendTextMessageRequest request);

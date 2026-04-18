@@ -34,7 +34,7 @@ public class AuthController {
 
     @PostMapping("/google-login")
     public ResponseEntity<?> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
-        return ResponseFactory.success(authService.loginWithGoogle(request.getIdToken()));
+        return ResponseFactory.success(authService.loginWithGoogle(request.getIdToken(), request.getRoleName()));
     }
 
     @PostMapping("/verify-otp")
