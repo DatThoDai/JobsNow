@@ -11,8 +11,12 @@ import java.util.Optional;
 public interface ConversationRepository extends JpaRepository<Conversation, Integer> {
     List<Conversation> findByCandidateUser(User candidate);
     List<Conversation> findByEmployerUser(User employer);
+        List<Conversation> findByCandidateUserOrEmployerUser(User candidate, User employer);
 
     Optional<Conversation> findByCandidateUserAndEmployerUser(User candidate, User employer);
+
+        @Query("SELECT c FROM Conversation c WHERE (c.candidateUser = :userA AND c.employerUser = :userB) OR (c.candidateUser = :userB AND c.employerUser = :userA)")
+        Optional<Conversation> findByParticipants(User userA, User userB);
 
     @Query("SELECT COUNT(c) FROM Conversation c WHERE " +
             "(c.candidateUser.userId = :userId AND c.unreadCountCandidate > 0 AND (c.deletedByCandidate = false OR c.deletedByCandidate IS NULL)) OR " +

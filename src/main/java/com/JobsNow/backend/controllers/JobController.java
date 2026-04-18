@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -83,5 +84,11 @@ public class JobController {
     @GetMapping("/hot")
     public ResponseEntity<?> getHotJobs(@RequestParam(defaultValue = "10") int limit) {
         return ResponseFactory.success(jobService.getHotJobs(limit));
+    }
+
+    @PostMapping("/pushAlgolia")
+    public ResponseEntity<?> pushJobsToAlgolia() throws IOException {
+        jobService.pushJobsToAlgolia();
+        return ResponseFactory.successMessage("Jobs pushed to Algolia successfully");
     }
 }

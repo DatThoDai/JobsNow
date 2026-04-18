@@ -5,13 +5,13 @@ import com.JobsNow.backend.request.CreateJobRequest;
 import com.JobsNow.backend.request.RejectJobRequest;
 import com.JobsNow.backend.request.UpdateJobRequest;
 
+import java.io.IOException;
 import java.util.List;
 
 public interface JobService {
     void createJob(CreateJobRequest request);
     JobDTO getJobById(Integer jobId);
 
-    /** Same category as job, excluding the job itself */
     List<JobDTO> getRelatedJobs(Integer jobId, int limit);
 
     List<JobDTO> getAllJobs();
@@ -24,4 +24,5 @@ public interface JobService {
     void rejectJob(RejectJobRequest request);
     List<JobDTO> getAllJobsForAdmin(String status);
     List<JobDTO> getHotJobs(int limit);
+    void pushJobsToAlgolia() throws IOException;
 }

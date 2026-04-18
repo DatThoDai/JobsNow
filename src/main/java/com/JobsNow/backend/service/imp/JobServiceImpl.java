@@ -16,8 +16,14 @@ import com.JobsNow.backend.request.UpdateJobRequest;
 import com.JobsNow.backend.service.CompanyQuotaService;
 import com.JobsNow.backend.service.EmailService;
 import com.JobsNow.backend.service.JobService;
+import com.algolia.api.SearchClient;
+import com.algolia.config.ClientOptions;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -25,7 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.chrono.ChronoLocalDate;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,6 +41,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class JobServiceImpl implements JobService {
+    private static final String ALGOLIA_INDEX_NAME = "jobs_now_index";
+
     private final JobRepository jobRepository;
     private final CompanyRepository companyRepository;
     private final JobCategoryRepository jobCategoryRepository;
@@ -42,6 +52,13 @@ public class JobServiceImpl implements JobService {
     private final MajorRepository majorRepository;
     private final EmailService emailService;
     private final CompanyQuotaService companyQuotaService;
+    
+    @Value("${algolia.application-id}")
+    private String algoliaID;
+    
+    @Value("${algolia.api-key}")
+    private String algoliaKey;
+
     @Transactional
     @Override
     public void createJob(CreateJobRequest request) {
@@ -141,6 +158,7 @@ public class JobServiceImpl implements JobService {
         int currentCount = company.getJobPostCount() != null ? company.getJobPostCount(): 0;
         company.setJobPostCount(currentCount + 1);
         companyRepository.save(company);
+        syncAlgoliaQuietly();
     }
 
     private boolean isJobAvailable(Job job) {
@@ -335,6 +353,7 @@ public class JobServiceImpl implements JobService {
             job.setIsApproved(false);
         }
         jobRepository.save(job);
+        syncAlgoliaQuietly();
     }
 
     @Override
@@ -344,6 +363,7 @@ public class JobServiceImpl implements JobService {
         job.setIsDeleted(true);
         job.setIsActive(false);
         jobRepository.save(job);
+        syncAlgoliaQuietly();
     }
 
     @Override
@@ -354,6 +374,7 @@ public class JobServiceImpl implements JobService {
         job.setIsPending(false);
         job.setIsApproved(false);
         jobRepository.save(job);
+        syncAlgoliaQuietly();
     }
 
     @Override
@@ -388,6 +409,7 @@ public class JobServiceImpl implements JobService {
         job.setIsActive(true);
         job.setNote(null);
         jobRepository.save(job);
+        syncAlgoliaQuietly();
         try {
             String toEmail = job.getCompany().getUser().getEmail();
             if (toEmail != null && !toEmail.isBlank()) {
@@ -407,6 +429,7 @@ public class JobServiceImpl implements JobService {
         job.setIsActive(false);
         job.setNote(request.getReason());
         jobRepository.save(job);
+        syncAlgoliaQuietly();
         try {
             String toEmail = job.getCompany().getUser().getEmail();
             if (toEmail != null && !toEmail.isBlank()) {
@@ -439,12 +462,17 @@ public class JobServiceImpl implements JobService {
     public void checkAndUpdateExpiredJobs(){
         LocalDateTime today = LocalDateTime.now();
         List<Job> jobs = jobRepository.findByIsActiveTrueAndIsDeletedFalse();
+        boolean hasUpdated = false;
         for(Job job : jobs){
             if(job.getDeadline() != null && job.getDeadline().isBefore(ChronoLocalDate.from(today))){
                 job.setIsExpired(true);
                 job.setIsActive(false);
                 jobRepository.save(job);
+                hasUpdated = true;
             }
+        }
+        if (hasUpdated) {
+            syncAlgoliaQuietly();
         }
     }
 
@@ -515,5 +543,55 @@ public class JobServiceImpl implements JobService {
                         : null
         );
         return dto;
+    }
+
+    @Override
+    public void pushJobsToAlgolia() throws IOException {
+        if (!hasAlgoliaConfig()) {
+            throw new IllegalStateException("Algolia config missing");
+        }
+
+        SearchClient client = new SearchClient(algoliaID, algoliaKey, ClientOptions.builder().build());
+
+        try {
+            List<JobDTO> jobs = getAllJobs();
+
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.registerModule(new JavaTimeModule());
+            mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+            List<Map<String, Object>> jobData = jobs.stream()
+                    .map(job -> {
+                        Map<String, Object> record = mapper.convertValue(job, Map.class);
+                        if (job.getJobId() != null) {
+                            record.put("objectID", job.getJobId().toString());
+                        }
+                        return record;
+                    })
+                    .filter(record -> record.get("objectID") != null)
+                    .toList();
+
+            client.saveObjects(ALGOLIA_INDEX_NAME, jobData);
+        } finally {
+            client.close();
+        }
+    }
+
+    private boolean hasAlgoliaConfig() {
+        return algoliaID != null
+                && !algoliaID.isBlank()
+                && algoliaKey != null
+                && !algoliaKey.isBlank();
+    }
+
+    private void syncAlgoliaQuietly() {
+        if (!hasAlgoliaConfig()) {
+            return;
+        }
+
+        try {
+            pushJobsToAlgolia();
+        } catch (Exception e) {
+            log.error("Failed to sync jobs to Algolia", e);
+        }
     }
 }

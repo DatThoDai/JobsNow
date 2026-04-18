@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,6 +30,11 @@ public class ConversationController {
     @PostMapping("/conversation")
     public ResponseEntity<?> createConversation(@RequestParam Integer candidateId, @RequestParam Integer employerId) {
         return ResponseFactory.success(conversationService.createConversation(candidateId, employerId));
+    }
+
+    @PostMapping("/support/conversation")
+    public ResponseEntity<?> createSupportConversation(Authentication authentication) {
+        return ResponseFactory.success(conversationService.createSupportConversation(authentication.getName()));
     }
 
     @GetMapping("/conversations/{userId}")

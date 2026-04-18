@@ -3,12 +3,11 @@ package com.JobsNow.backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "saved_job", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"job_seeker_profile_id", "job_id"})
+        @UniqueConstraint(columnNames = { "job_seeker_profile_id", "job_id" })
 })
 @Getter
 @Setter
