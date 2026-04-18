@@ -5,8 +5,11 @@ import com.JobsNow.backend.entity.enums.CompanyPostStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,4 +35,25 @@ public interface CompanyPostRepository extends JpaRepository<CompanyPost, Intege
     );
 
     Page<CompanyPost> findByStatusOrderByPublishedAtDesc(CompanyPostStatus status, Pageable pageable);
+
+    long countByCompany_CompanyIdAndStatus(Integer companyId, CompanyPostStatus status);
+
+    long countByCompany_CompanyIdAndStatusAndPublishedAtBetween(
+            Integer companyId,
+            CompanyPostStatus status,
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
+    @Query("""
+        select p.status, count(p)
+        from CompanyPost p
+        where p.company.companyId = :companyId
+          and p.status in :statuses
+        group by p.status
+    """)
+    List<Object[]> countByStatusForCompany(
+            @Param("companyId") Integer companyId,
+            @Param("statuses") List<CompanyPostStatus> statuses
+    );
 }

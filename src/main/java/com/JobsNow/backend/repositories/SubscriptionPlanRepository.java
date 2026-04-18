@@ -12,4 +12,6 @@ public interface SubscriptionPlanRepository extends JpaRepository<SubscriptionPl
     List<SubscriptionPlan> findByIsActiveTrueOrderByPriorityLevelDescPriceAsc();
     List<SubscriptionPlan> findByIsActiveTrueAndScopeOrderByPriorityLevelDescPriceAsc(String scope);
     Optional<SubscriptionPlan> findByType(PlanType type);
+    long countByIsActiveTrue();
+    long countByIsActiveTrueAndScope(String scope);
 }

@@ -6,6 +6,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 public interface CompanyFollowerRepository extends JpaRepository<CompanyFollower, Integer> {
     boolean existsByCompanyCompanyIdAndUserUserId(Integer companyId, Integer userId);
 
@@ -13,8 +16,15 @@ public interface CompanyFollowerRepository extends JpaRepository<CompanyFollower
     void deleteByCompanyCompanyIdAndUserUserId(Integer companyId, Integer userId);
 
     long countByCompanyCompanyId(Integer companyId);
+    long countByCompanyCompanyIdAndCreatedAtBetween(Integer companyId, LocalDateTime start, LocalDateTime end);
 
     Page<CompanyFollower> findByCompany_CompanyIdOrderByCreatedAtDesc(Integer companyId, Pageable pageable);
 
     Page<CompanyFollower> findByUser_UserIdOrderByCreatedAtDesc(Integer userId, Pageable pageable);
+
+    List<CompanyFollower> findByCompanyCompanyIdAndCreatedAtBetweenOrderByCreatedAtAsc(
+            Integer companyId,
+            LocalDateTime start,
+            LocalDateTime end
+    );
 }
