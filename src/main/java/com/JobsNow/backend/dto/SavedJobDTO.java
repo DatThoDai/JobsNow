@@ -18,6 +18,8 @@ public class SavedJobDTO {
     private String location;
     private Double salaryMin;
     private Double salaryMax;
+    private String salaryType;
+    private String salaryCurrency;
     private String jobType;
     private LocalDateTime savedAt;
     private Boolean isSaved;

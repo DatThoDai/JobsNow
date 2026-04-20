@@ -16,6 +16,8 @@ public class SavedJobMapper {
                 .location(savedJob.getJob().getLocation())
                 .salaryMin(savedJob.getJob().getSalaryMin())
                 .salaryMax(savedJob.getJob().getSalaryMax())
+                .salaryType(savedJob.getJob().getSalaryType() != null ? savedJob.getJob().getSalaryType().name() : "RANGE")
+                .salaryCurrency(savedJob.getJob().getSalaryCurrency() != null ? savedJob.getJob().getSalaryCurrency().name() : "VND")
                 .jobType(savedJob.getJob().getJobType() != null ? savedJob.getJob().getJobType().name() : null)
                 .savedAt(savedJob.getSavedAt())
                 .isSaved(true)

@@ -11,6 +11,7 @@ import com.JobsNow.backend.repositories.*;
 import com.JobsNow.backend.service.CompanyQuotaService;
 import com.JobsNow.backend.service.CandidateQuotaService;
 import com.JobsNow.backend.service.VNPayService;
+import com.JobsNow.backend.service.JobService;
 import com.JobsNow.backend.utils.VNPayUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ public class VNPayServiceImpl implements VNPayService {
     private final CompanyQuotaService companyQuotaService;
     private final CandidateQuotaService candidateQuotaService;
     private final CompanyRepository companyRepository;
+    private final JobService jobService;
 
     @Override
     @Transactional
@@ -200,6 +202,13 @@ public class VNPayServiceImpl implements VNPayService {
 
         jobRepository.save(job);
         log.info("Boost activated for job: {}, plan: {}", job.getJobId(), plan.getName());
+
+        try {
+            jobService.pushSingleJobToAlgolia(job.getJobId());
+            log.info("Synced newly boosted job to Algolia.");
+        } catch (Exception e) {
+            log.warn("Failed to sync boosted job to Algolia", e);
+        }
     }
 
     private String generateOrderNumber() {

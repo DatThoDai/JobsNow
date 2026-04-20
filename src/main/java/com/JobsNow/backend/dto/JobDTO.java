@@ -19,6 +19,8 @@ public class JobDTO {
     private String benefits;
     private Double salaryMin;
     private Double salaryMax;
+    private String salaryType;
+    private String salaryCurrency;
     private String yearsOfExperience;
     private String educationLevel;
     private String jobType;

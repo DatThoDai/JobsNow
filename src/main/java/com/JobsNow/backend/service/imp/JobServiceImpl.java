@@ -6,6 +6,8 @@ import com.JobsNow.backend.entity.enums.ApplicationLanguage;
 import com.JobsNow.backend.entity.enums.EducationLevel;
 import com.JobsNow.backend.entity.enums.GenderRequirement;
 import com.JobsNow.backend.entity.enums.JobType;
+import com.JobsNow.backend.entity.enums.SalaryCurrency;
+import com.JobsNow.backend.entity.enums.SalaryType;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.JobMapper;
@@ -18,6 +20,7 @@ import com.JobsNow.backend.service.EmailService;
 import com.JobsNow.backend.service.JobService;
 import com.algolia.api.SearchClient;
 import com.algolia.config.ClientOptions;
+import com.algolia.model.search.IndexSettings;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -32,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.chrono.ChronoLocalDate;
 import java.io.IOException;
+import com.JobsNow.backend.service.NotificationService;
+import com.JobsNow.backend.request.CreateNotificationRequest;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.List;
@@ -52,10 +57,11 @@ public class JobServiceImpl implements JobService {
     private final MajorRepository majorRepository;
     private final EmailService emailService;
     private final CompanyQuotaService companyQuotaService;
-    
+    private final NotificationService notificationService;
+
     @Value("${algolia.application-id}")
     private String algoliaID;
-    
+
     @Value("${algolia.api-key}")
     private String algoliaKey;
 
@@ -71,14 +77,44 @@ public class JobServiceImpl implements JobService {
         job.setDescription(request.getDescription());
         job.setRequirements(request.getRequirements());
         job.setBenefits(request.getBenefits());
-        job.setSalaryMin(request.getSalaryMin());
-        job.setSalaryMax(request.getSalaryMax());
+        SalaryType salaryType = SalaryType.RANGE;
+        if (request.getSalaryType() != null && !request.getSalaryType().isBlank()) {
+            try {
+                salaryType = SalaryType.valueOf(request.getSalaryType().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid salaryType. Allowed: RANGE, NEGOTIABLE, COMPETITIVE");
+            }
+        }
+        job.setSalaryType(salaryType);
+
+        if (salaryType == SalaryType.RANGE) {
+            job.setSalaryMin(request.getSalaryMin());
+            job.setSalaryMax(request.getSalaryMax());
+            if (request.getSalaryMin() != null && request.getSalaryMax() != null
+                    && request.getSalaryMin() > request.getSalaryMax()) {
+                throw new BadRequestException("salaryMin must be <= salaryMax");
+            }
+        } else {
+            job.setSalaryMin(null);
+            job.setSalaryMax(null);
+        }
+
+        if (request.getSalaryCurrency() != null && !request.getSalaryCurrency().isBlank()) {
+            try {
+                job.setSalaryCurrency(SalaryCurrency.valueOf(request.getSalaryCurrency().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid salaryCurrency. Allowed: VND, USD, EUR, JPY, SGD, KRW, OTHER");
+            }
+        } else {
+            job.setSalaryCurrency(SalaryCurrency.VND);
+        }
         job.setYearsOfExperience(request.getYearsOfExperience());
         if (request.getEducationLevel() != null) {
             try {
                 job.setEducationLevel(EducationLevel.valueOf(request.getEducationLevel().toUpperCase()));
             } catch (IllegalArgumentException e) {
-                throw new BadRequestException("Invalid education level. Allowed: HIGH_SCHOOL, ASSOCIATE, BACHELOR, MASTER, DOCTORATE, OTHER");
+                throw new BadRequestException(
+                        "Invalid education level. Allowed: HIGH_SCHOOL, ASSOCIATE, BACHELOR, MASTER, DOCTORATE, OTHER");
             }
         }
         job.setLocation(request.getLocation());
@@ -125,10 +161,10 @@ public class JobServiceImpl implements JobService {
         }
         Job savedJob = jobRepository.save(job);
 
-        if(request.getJobSkills()!=null && !request.getJobSkills().isEmpty()){
+        if (request.getJobSkills() != null && !request.getJobSkills().isEmpty()) {
             List<JobSkill> jobSkills = new ArrayList<>();
-            for(CreateJobRequest.JobSkillItem skillItem : request.getJobSkills()){
-                if(skillItem.getSkillId() == null){
+            for (CreateJobRequest.JobSkillItem skillItem : request.getJobSkills()) {
+                if (skillItem.getSkillId() == null) {
                     throw new BadRequestException("Skill ID cannot be null");
                 }
                 Skill skill = skillRepository.findById(skillItem.getSkillId())
@@ -147,7 +183,7 @@ public class JobServiceImpl implements JobService {
 
         if (request.getMajorIds() != null && !request.getMajorIds().isEmpty()) {
             List<Major> majors = new ArrayList<>();
-            for(Integer majorId : request.getMajorIds()){
+            for (Integer majorId : request.getMajorIds()) {
                 Major major = majorRepository.findById(majorId)
                         .orElseThrow(() -> new NotFoundException("Major not found"));
                 majors.add(major);
@@ -155,10 +191,10 @@ public class JobServiceImpl implements JobService {
             savedJob.setMajors(majors);
         }
         jobRepository.save(savedJob);
-        int currentCount = company.getJobPostCount() != null ? company.getJobPostCount(): 0;
+        int currentCount = company.getJobPostCount() != null ? company.getJobPostCount() : 0;
         company.setJobPostCount(currentCount + 1);
         companyRepository.save(company);
-        syncAlgoliaQuietly();
+        syncSingleJobToAlgoliaQuietly(savedJob.getJobId());
     }
 
     private boolean isJobAvailable(Job job) {
@@ -207,6 +243,7 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<JobDTO> getAllJobs() {
         List<Job> jobs = jobRepository.findByIsActiveTrueAndIsDeletedFalseOrderByFinalScoreDescPostedAtDesc().stream()
                 .filter(this::isJobAvailable)
@@ -218,6 +255,7 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<JobDTO> getJobsByCompanyId(Integer companyId) {
         List<Job> jobs = jobRepository.findByCompany_CompanyId(companyId);
         return jobs.stream()
@@ -244,11 +282,35 @@ public class JobServiceImpl implements JobService {
         if (request.getBenefits() != null) {
             job.setBenefits(request.getBenefits());
         }
-        if (request.getSalaryMin() != null) {
-            job.setSalaryMin(request.getSalaryMin());
+        if (request.getSalaryType() != null && !request.getSalaryType().isBlank()) {
+            try {
+                job.setSalaryType(SalaryType.valueOf(request.getSalaryType().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid salaryType. Allowed: RANGE, NEGOTIABLE, COMPETITIVE");
+            }
         }
-        if (request.getSalaryMax() != null) {
-            job.setSalaryMax(request.getSalaryMax());
+        SalaryType effectiveSalaryType = job.getSalaryType() != null ? job.getSalaryType() : SalaryType.RANGE;
+        if (effectiveSalaryType == SalaryType.RANGE) {
+            if (request.getSalaryMin() != null) {
+                job.setSalaryMin(request.getSalaryMin());
+            }
+            if (request.getSalaryMax() != null) {
+                job.setSalaryMax(request.getSalaryMax());
+            }
+            if (job.getSalaryMin() != null && job.getSalaryMax() != null
+                    && job.getSalaryMin() > job.getSalaryMax()) {
+                throw new BadRequestException("salaryMin must be <= salaryMax");
+            }
+        } else {
+            job.setSalaryMin(null);
+            job.setSalaryMax(null);
+        }
+        if (request.getSalaryCurrency() != null && !request.getSalaryCurrency().isBlank()) {
+            try {
+                job.setSalaryCurrency(SalaryCurrency.valueOf(request.getSalaryCurrency().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid salaryCurrency. Allowed: VND, USD, EUR, JPY, SGD, KRW, OTHER");
+            }
         }
         if (request.getYearsOfExperience() != null) {
             job.setYearsOfExperience(request.getYearsOfExperience());
@@ -263,7 +325,8 @@ public class JobServiceImpl implements JobService {
             try {
                 job.setEducationLevel(EducationLevel.valueOf(request.getEducationLevel().toUpperCase()));
             } catch (IllegalArgumentException e) {
-                throw new BadRequestException("Invalid education level. Allowed: HIGH_SCHOOL, ASSOCIATE, BACHELOR, MASTER, DOCTORATE, OTHER");
+                throw new BadRequestException(
+                        "Invalid education level. Allowed: HIGH_SCHOOL, ASSOCIATE, BACHELOR, MASTER, DOCTORATE, OTHER");
             }
         }
         if (request.getJobType() != null) {
@@ -290,8 +353,7 @@ public class JobServiceImpl implements JobService {
                     jobSkill.setJob(job);
                     jobSkill.setSkill(skill);
                     jobSkill.setIsRequired(
-                            item.getIsRequired() != null ? item.getIsRequired() : false
-                    );
+                            item.getIsRequired() != null ? item.getIsRequired() : false);
                     jobSkill.setLevel(item.getLevel());
                     newJobSkills.add(jobSkill);
                 }
@@ -324,7 +386,8 @@ public class JobServiceImpl implements JobService {
                 job.setApplicationLanguage(null);
             } else {
                 try {
-                    job.setApplicationLanguage(ApplicationLanguage.valueOf(request.getApplicationLanguage().toUpperCase()));
+                    job.setApplicationLanguage(
+                            ApplicationLanguage.valueOf(request.getApplicationLanguage().toUpperCase()));
                 } catch (IllegalArgumentException e) {
                     throw new BadRequestException("Invalid application language");
                 }
@@ -341,19 +404,15 @@ public class JobServiceImpl implements JobService {
                 }
             }
         }
-        if (request.getMinAge() != null) {
-            job.setMinAge(request.getMinAge());
-        }
-        if (request.getMaxAge() != null) {
-            job.setMaxAge(request.getMaxAge());
-        }
+        job.setMinAge(request.getMinAge());
+        job.setMaxAge(request.getMaxAge());
         validateAgeRange(job.getMinAge(), job.getMaxAge());
         if (!Boolean.TRUE.equals(job.getIsApproved())) {
             job.setIsPending(true);
             job.setIsApproved(false);
         }
         jobRepository.save(job);
-        syncAlgoliaQuietly();
+        syncSingleJobToAlgoliaQuietly(job.getJobId());
     }
 
     @Override
@@ -363,7 +422,7 @@ public class JobServiceImpl implements JobService {
         job.setIsDeleted(true);
         job.setIsActive(false);
         jobRepository.save(job);
-        syncAlgoliaQuietly();
+        syncSingleJobToAlgoliaQuietly(job.getJobId());
     }
 
     @Override
@@ -374,7 +433,7 @@ public class JobServiceImpl implements JobService {
         job.setIsPending(false);
         job.setIsApproved(false);
         jobRepository.save(job);
-        syncAlgoliaQuietly();
+        syncSingleJobToAlgoliaQuietly(job.getJobId());
     }
 
     @Override
@@ -409,7 +468,7 @@ public class JobServiceImpl implements JobService {
         job.setIsActive(true);
         job.setNote(null);
         jobRepository.save(job);
-        syncAlgoliaQuietly();
+        syncSingleJobToAlgoliaQuietly(job.getJobId());
         try {
             String toEmail = job.getCompany().getUser().getEmail();
             if (toEmail != null && !toEmail.isBlank()) {
@@ -417,6 +476,17 @@ public class JobServiceImpl implements JobService {
             }
         } catch (Exception e) {
             log.error("Failed to send job approved email, jobId={}", jobId, e);
+        }
+
+        try {
+            CreateNotificationRequest notificationRequest = CreateNotificationRequest.builder()
+                    .userId(job.getCompany().getUser().getUserId())
+                    .content("Tin tuyển dụng \"" + job.getTitle() + "\" của bạn đã được phê duyệt.")
+                    .type("SYSTEM")
+                    .build();
+            notificationService.createNotification(notificationRequest);
+        } catch (Exception e) {
+            log.error("Failed to send in-app notification for job approval, jobId={}", jobId, e);
         }
     }
 
@@ -429,18 +499,32 @@ public class JobServiceImpl implements JobService {
         job.setIsActive(false);
         job.setNote(request.getReason());
         jobRepository.save(job);
-        syncAlgoliaQuietly();
+        syncSingleJobToAlgoliaQuietly(job.getJobId());
         try {
             String toEmail = job.getCompany().getUser().getEmail();
             if (toEmail != null && !toEmail.isBlank()) {
-                emailService.sendJobPostRejectedEmail(toEmail, job.getTitle(), job.getCompany().getCompanyName(), request.getReason());
+                emailService.sendJobPostRejectedEmail(toEmail, job.getTitle(), job.getCompany().getCompanyName(),
+                        request.getReason());
             }
         } catch (Exception e) {
             log.error("Failed to send job rejected email, jobId={}", request.getJobId(), e);
         }
+
+        try {
+            CreateNotificationRequest notificationRequest = CreateNotificationRequest.builder()
+                    .userId(job.getCompany().getUser().getUserId())
+                    .content("Tin tuyển dụng \"" + job.getTitle() + "\" của bạn đã bị từ chối. Lý do: "
+                            + request.getReason())
+                    .type("SYSTEM")
+                    .build();
+            notificationService.createNotification(notificationRequest);
+        } catch (Exception e) {
+            log.error("Failed to send in-app notification for job rejection, jobId={}", request.getJobId(), e);
+        }
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<JobDTO> getAllJobsForAdmin(String status) {
         List<Job> all = jobRepository.findAllByOrderByPostedAtDesc();
         if (status != null && !status.isBlank()) {
@@ -451,7 +535,8 @@ public class JobServiceImpl implements JobService {
                 all = all.stream().filter(job -> Boolean.TRUE.equals(job.getIsApproved())).toList();
             } else if ("rejected".equals(s)) {
                 all = all.stream()
-                        .filter(job -> !Boolean.TRUE.equals(job.getIsApproved()) && !Boolean.TRUE.equals(job.getIsPending()))
+                        .filter(job -> !Boolean.TRUE.equals(job.getIsApproved())
+                                && !Boolean.TRUE.equals(job.getIsPending()))
                         .toList();
             }
         }
@@ -459,12 +544,12 @@ public class JobServiceImpl implements JobService {
     }
 
     @Scheduled(cron = "0 0 0 * * ?")
-    public void checkAndUpdateExpiredJobs(){
+    public void checkAndUpdateExpiredJobs() {
         LocalDateTime today = LocalDateTime.now();
         List<Job> jobs = jobRepository.findByIsActiveTrueAndIsDeletedFalse();
         boolean hasUpdated = false;
-        for(Job job : jobs){
-            if(job.getDeadline() != null && job.getDeadline().isBefore(ChronoLocalDate.from(today))){
+        for (Job job : jobs) {
+            if (job.getDeadline() != null && job.getDeadline().isBefore(ChronoLocalDate.from(today))) {
                 job.setIsExpired(true);
                 job.setIsActive(false);
                 jobRepository.save(job);
@@ -482,22 +567,21 @@ public class JobServiceImpl implements JobService {
                 .collect(Collectors.toMap(
                         b -> b.getJob().getJobId(),
                         b -> b,
-                        (a, b) -> a.getEndAt().isAfter(b.getEndAt()) ? a : b
-                ));
+                        (a, b) -> a.getEndAt().isAfter(b.getEndAt()) ? a : b));
 
-        List<Job> hotJobs = jobRepository.findByIsActiveTrueAndIsDeletedFalseOrderByFinalScoreDescPostedAtDesc().stream()
-            .sorted((a, b) -> {
-                double bScore = b.getFinalScore() != null ? b.getFinalScore() : 0;
-                double aScore = a.getFinalScore() != null ? a.getFinalScore() : 0;
-                int scoreCompare = Double.compare(bScore, aScore);
-                if (scoreCompare != 0) {
-                return scoreCompare;
-                }
-                return Integer.compare(
-                    resolvePriorityLevel(activeBoosts.get(b.getJobId())),
-                    resolvePriorityLevel(activeBoosts.get(a.getJobId()))
-                );
-            })
+        List<Job> hotJobs = jobRepository.findByIsActiveTrueAndIsDeletedFalseOrderByFinalScoreDescPostedAtDesc()
+                .stream()
+                .sorted((a, b) -> {
+                    double bScore = b.getFinalScore() != null ? b.getFinalScore() : 0;
+                    double aScore = a.getFinalScore() != null ? a.getFinalScore() : 0;
+                    int scoreCompare = Double.compare(bScore, aScore);
+                    if (scoreCompare != 0) {
+                        return scoreCompare;
+                    }
+                    return Integer.compare(
+                            resolvePriorityLevel(activeBoosts.get(b.getJobId())),
+                            resolvePriorityLevel(activeBoosts.get(a.getJobId())));
+                })
                 .limit(limit)
                 .toList();
         return hotJobs.stream().map(JobMapper::toJobDTO).map(this::enrichBoostStatus).collect(Collectors.toList());
@@ -540,12 +624,12 @@ public class JobServiceImpl implements JobService {
         dto.setActiveBoostPlanType(
                 activeBoost.getPlan() != null && activeBoost.getPlan().getType() != null
                         ? activeBoost.getPlan().getType().name()
-                        : null
-        );
+                        : null);
         return dto;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public void pushJobsToAlgolia() throws IOException {
         if (!hasAlgoliaConfig()) {
             throw new IllegalStateException("Algolia config missing");
@@ -565,14 +649,56 @@ public class JobServiceImpl implements JobService {
                         if (job.getJobId() != null) {
                             record.put("objectID", job.getJobId().toString());
                         }
+                        if (record.get("finalScore") == null) {
+                            record.put("finalScore", 0.0);
+                        }
                         return record;
                     })
                     .filter(record -> record.get("objectID") != null)
                     .toList();
 
             client.saveObjects(ALGOLIA_INDEX_NAME, jobData);
+
+            try {
+                IndexSettings settings = new IndexSettings()
+                        .setCustomRanking(List.of("desc(finalScore)", "desc(postedAt)"));
+                client.setSettings(ALGOLIA_INDEX_NAME, settings);
+            } catch (Exception e) {
+                log.warn("Failed to set Algolia custom ranking", e);
+            }
         } finally {
             client.close();
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void pushSingleJobToAlgolia(Integer jobId) {
+        if (!hasAlgoliaConfig() || jobId == null) {
+            return;
+        }
+
+        try (SearchClient client = new SearchClient(algoliaID, algoliaKey, ClientOptions.builder().build())) {
+            JobDTO jobDTO = getJobById(jobId);
+            if (jobDTO == null)
+                return;
+
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.registerModule(new JavaTimeModule());
+            mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> record = mapper.convertValue(jobDTO, Map.class);
+            String objectID = jobDTO.getJobId().toString();
+            record.put("objectID", objectID);
+            if (record.get("finalScore") == null) {
+                record.put("finalScore", 0.0);
+            }
+
+            client.partialUpdateObject(ALGOLIA_INDEX_NAME, objectID, record);
+            log.info("Successfully pushed single job [{}] to Algolia", jobId);
+        } catch (Exception e) {
+            log.error("Failed to push single job [{}] to Algolia", jobId, e);
         }
     }
 
@@ -592,6 +718,18 @@ public class JobServiceImpl implements JobService {
             pushJobsToAlgolia();
         } catch (Exception e) {
             log.error("Failed to sync jobs to Algolia", e);
+        }
+    }
+
+    private void syncSingleJobToAlgoliaQuietly(Integer jobId) {
+        if (!hasAlgoliaConfig()) {
+            return;
+        }
+
+        try {
+            pushSingleJobToAlgolia(jobId);
+        } catch (Exception e) {
+            log.error("Failed to sync single job to Algolia", e);
         }
     }
 }

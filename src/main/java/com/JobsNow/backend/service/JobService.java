@@ -25,4 +25,7 @@ public interface JobService {
     List<JobDTO> getAllJobsForAdmin(String status);
     List<JobDTO> getHotJobs(int limit);
     void pushJobsToAlgolia() throws IOException;
+    void pushSingleJobToAlgolia(Integer jobId);
+
+    void checkAndUpdateExpiredJobs();
 }

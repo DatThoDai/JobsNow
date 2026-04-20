@@ -25,6 +25,10 @@ public class UpdateJobRequest {
     @PositiveOrZero
     private Double salaryMax;
 
+    private String salaryType;
+
+    private String salaryCurrency;
+
     private String yearsOfExperience;
     private String educationLevel;
     private String jobType;

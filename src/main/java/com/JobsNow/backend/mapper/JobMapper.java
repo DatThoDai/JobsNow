@@ -22,6 +22,8 @@ public class JobMapper {
         dto.setBenefits(job.getBenefits());
         dto.setSalaryMin(job.getSalaryMin());
         dto.setSalaryMax(job.getSalaryMax());
+        dto.setSalaryType(job.getSalaryType() != null ? job.getSalaryType().name() : "RANGE");
+        dto.setSalaryCurrency(job.getSalaryCurrency() != null ? job.getSalaryCurrency().name() : "VND");
         dto.setYearsOfExperience(job.getYearsOfExperience());
         dto.setEducationLevel(job.getEducationLevel() != null ? job.getEducationLevel().name() : null);
         dto.setJobType(job.getJobType() != null ? job.getJobType().name() : null);

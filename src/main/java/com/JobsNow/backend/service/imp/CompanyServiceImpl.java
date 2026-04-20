@@ -5,7 +5,6 @@ import com.JobsNow.backend.dto.CompanyImageDTO;
 import com.JobsNow.backend.entity.Company;
 import com.JobsNow.backend.entity.CompanyFollower;
 import com.JobsNow.backend.entity.CompanyImage;
-import com.JobsNow.backend.entity.CompanyReview;
 import com.JobsNow.backend.entity.Industry;
 import com.JobsNow.backend.entity.Job;
 import com.JobsNow.backend.entity.Social;
@@ -40,7 +39,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;

@@ -36,6 +36,10 @@ public class CreateJobRequest {
     @PositiveOrZero(message = "Maximum salary must be >= 0")
     private Double salaryMax;
 
+    private String salaryType;
+
+    private String salaryCurrency;
+
     @NotBlank(message = "Experience is required")
     private String yearsOfExperience;
 
