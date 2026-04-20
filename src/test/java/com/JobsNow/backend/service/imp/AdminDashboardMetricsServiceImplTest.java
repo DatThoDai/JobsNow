@@ -59,11 +59,12 @@ class AdminDashboardMetricsServiceImplTest {
 
         when(paymentOrderRepository.countByStatusAndCreatedAtBetween(any(), any(), any())).thenReturn(4L);
         when(paymentOrderRepository.sumRevenueByStatusInRange(any(), any(), any())).thenReturn(1500000d);
-        when(paymentOrderRepository.countByStatusInRange(any(), any())).thenReturn(List.of(new Object[]{OrderStatus.PAID, 4L}));
+        when(paymentOrderRepository.countByStatusInRange(any(), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{OrderStatus.PAID, 4L}));
         when(paymentOrderRepository.summarizeByScopeInRange(any(), any()))
-                .thenReturn(List.of(new Object[]{"SUBSCRIPTION", 3L, 1200000d}));
+                .thenReturn(List.<Object[]>of(new Object[]{"SUBSCRIPTION", 3L, 1200000d}));
         when(paymentOrderRepository.topPlansInRange(any(), any()))
-                .thenReturn(List.of(new Object[]{1, "VIP 30D", "SUBSCRIPTION", 3L, 3L, 1200000d}));
+                .thenReturn(List.<Object[]>of(new Object[]{1, "VIP 30D", "SUBSCRIPTION", 3L, 3L, 1200000d}));
 
         PaymentOrder paidOrder = PaymentOrder.builder()
                 .status(OrderStatus.PAID)

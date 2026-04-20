@@ -75,3 +75,7 @@ vnpay:
   hash-secret: ${VNPAY_HASH_SECRET:1BX5VZOVDP8G19NJCYVC4OZW2V5XXLZG}
   return-url: http://localhost:8082/payment/vnpay-return
   ip-addr: 127.0.0.1
+
+algolia:
+  application-id: ${ALGOLIA_APP_ID:}
+  api-key: ${ALGOLIA_API_KEY:}
