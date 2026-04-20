@@ -2,6 +2,7 @@ package com.JobsNow.backend.dto;
 
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -27,6 +28,7 @@ public class CompanyDTO {
     private Boolean isVerified;
     private Integer jobPostCount;
     private Long followerCount;
+    private LocalDateTime createdAt;
 
     private String email;
     private String phone;

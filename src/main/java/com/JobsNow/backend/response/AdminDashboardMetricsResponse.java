@@ -63,6 +63,14 @@ public class AdminDashboardMetricsResponse {
         private long currentRevenue;
         private long previousOrderCount;
         private long previousRevenue;
+        private long currentTotalUsers;
+        private long previousTotalUsers;
+        private long currentTotalCompanies;
+        private long previousTotalCompanies;
+        private long currentTotalJobs;
+        private long previousTotalJobs;
+        private long currentActivePlans;
+        private long previousActivePlans;
     }
 
     @Data

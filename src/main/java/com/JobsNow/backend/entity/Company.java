@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
@@ -52,6 +53,8 @@ public class Company {
     private User user;
 
     private Integer jobPostCount = 0;
+
+    private LocalDateTime createdAt;
 
     @ManyToMany
     @JoinTable(

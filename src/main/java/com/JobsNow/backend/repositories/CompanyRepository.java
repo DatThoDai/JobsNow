@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,4 +27,25 @@ public interface CompanyRepository extends JpaRepository<Company, Integer> {
 
     @Query("SELECT COUNT(c) > 0 FROM Company c JOIN c.industries i WHERE i.industryId = :industryId")
     boolean existsByIndustryId(@Param("industryId") Integer industryId);
+
+    @Query("""
+        select count(c)
+        from Company c
+        where coalesce(c.createdAt, c.user.createdAt) between :start and :end
+    """)
+    long countCreatedInRange(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+        select coalesce(c.createdAt, c.user.createdAt)
+        from Company c
+        where coalesce(c.createdAt, c.user.createdAt) between :start and :end
+        order by coalesce(c.createdAt, c.user.createdAt) asc
+    """)
+    List<LocalDateTime> findCreatedAtValuesInRange(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 }

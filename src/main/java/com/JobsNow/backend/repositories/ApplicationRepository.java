@@ -48,4 +48,17 @@ public interface ApplicationRepository extends JpaRepository<Application, Intege
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    @Query("""
+        select a.job.jobId, count(a)
+        from Application a
+        where a.job.company.companyId = :companyId
+          and a.appliedAt between :start and :end
+        group by a.job.jobId
+    """)
+    List<Object[]> countAppliesByJobInRange(
+            @Param("companyId") Integer companyId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 }
