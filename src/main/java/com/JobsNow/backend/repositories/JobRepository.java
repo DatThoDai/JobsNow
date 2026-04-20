@@ -57,6 +57,20 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
 
     Long countByIsApprovedFalse();
     long countByIsActiveTrueAndIsDeletedFalseAndIsApprovedTrue();
+    long countByPostedAtBetweenAndIsActiveTrueAndIsDeletedFalseAndIsApprovedTrue(LocalDateTime start, LocalDateTime end);
+    @Query("""
+        select j
+        from Job j
+        where j.postedAt between :start and :end
+          and j.isActive = true
+          and j.isDeleted = false
+          and j.isApproved = true
+        order by j.postedAt asc
+    """)
+    List<Job> findApprovedActivePostedInRange(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
     @Query("SELECT j.company.companyName, COUNT(j) FROM Job j " +
             "WHERE j.postedAt BETWEEN :start AND :end " +
             "GROUP BY j.company.companyName ORDER BY COUNT(j) DESC")

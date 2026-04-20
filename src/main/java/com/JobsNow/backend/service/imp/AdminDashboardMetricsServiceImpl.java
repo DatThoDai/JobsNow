@@ -1,12 +1,13 @@
 package com.JobsNow.backend.service.imp;
 
+import com.JobsNow.backend.entity.Job;
 import com.JobsNow.backend.entity.PaymentOrder;
+import com.JobsNow.backend.entity.User;
 import com.JobsNow.backend.entity.enums.OrderStatus;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.repositories.CompanyRepository;
 import com.JobsNow.backend.repositories.JobRepository;
 import com.JobsNow.backend.repositories.PaymentOrderRepository;
-import com.JobsNow.backend.repositories.SubscriptionPlanRepository;
 import com.JobsNow.backend.repositories.UserRepository;
 import com.JobsNow.backend.response.AdminDashboardMetricsResponse;
 import com.JobsNow.backend.service.AdminDashboardMetricsService;
@@ -23,9 +24,11 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -33,7 +36,6 @@ public class AdminDashboardMetricsServiceImpl implements AdminDashboardMetricsSe
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
     private final JobRepository jobRepository;
-    private final SubscriptionPlanRepository subscriptionPlanRepository;
     private final PaymentOrderRepository paymentOrderRepository;
 
     @Override
@@ -49,10 +51,43 @@ public class AdminDashboardMetricsServiceImpl implements AdminDashboardMetricsSe
         TimeRange previousRange = comparePrevious ? previousRange(currentRange) : null;
         BucketType bucketType = resolveBucketType(currentRange, preset);
 
-        long totalUsers = userRepository.count();
-        long totalCompanies = companyRepository.count();
-        long totalJobs = jobRepository.count();
-        long activePlans = subscriptionPlanRepository.countByIsActiveTrue();
+        long totalUsersCurrent = userRepository.countByCreatedAtBetween(
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
+        long totalUsersPrevious = previousRange == null ? 0 : userRepository.countByCreatedAtBetween(
+                previousRange.start.toLocalDateTime(),
+                previousRange.end.toLocalDateTime()
+        );
+
+        long totalCompaniesCurrent = companyRepository.countCreatedInRange(
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
+        long totalCompaniesPrevious = previousRange == null ? 0 : companyRepository.countCreatedInRange(
+                previousRange.start.toLocalDateTime(),
+                previousRange.end.toLocalDateTime()
+        );
+
+        long totalJobsCurrent = jobRepository.countByPostedAtBetweenAndIsActiveTrueAndIsDeletedFalseAndIsApprovedTrue(
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
+        long totalJobsPrevious = previousRange == null ? 0 : jobRepository.countByPostedAtBetweenAndIsActiveTrueAndIsDeletedFalseAndIsApprovedTrue(
+                previousRange.start.toLocalDateTime(),
+                previousRange.end.toLocalDateTime()
+        );
+
+        long activePlansCurrent = paymentOrderRepository.countDistinctPlansByStatusAndCreatedAtBetween(
+                OrderStatus.PAID,
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
+        long activePlansPrevious = previousRange == null ? 0 : paymentOrderRepository.countDistinctPlansByStatusAndCreatedAtBetween(
+                OrderStatus.PAID,
+                previousRange.start.toLocalDateTime(),
+                previousRange.end.toLocalDateTime()
+        );
 
         long paidOrdersCurrent = paymentOrderRepository.countByStatusAndCreatedAtBetween(
                 OrderStatus.PAID,
@@ -90,10 +125,10 @@ public class AdminDashboardMetricsServiceImpl implements AdminDashboardMetricsSe
                         .to(currentRange.end.toOffsetDateTime().toString())
                         .build())
                 .kpis(AdminDashboardMetricsResponse.KpiBlock.builder()
-                        .totalUsers(kpi(totalUsers, null, false))
-                        .totalCompanies(kpi(totalCompanies, null, false))
-                        .totalJobs(kpi(totalJobs, null, false))
-                        .activePlans(kpi(activePlans, null, false))
+                        .totalUsers(kpi(totalUsersCurrent, totalUsersPrevious, comparePrevious))
+                        .totalCompanies(kpi(totalCompaniesCurrent, totalCompaniesPrevious, comparePrevious))
+                        .totalJobs(kpi(totalJobsCurrent, totalJobsPrevious, comparePrevious))
+                        .activePlans(kpi(activePlansCurrent, activePlansPrevious, comparePrevious))
                         .paidOrders(kpi(paidOrdersCurrent, paidOrdersPrevious, comparePrevious))
                         .paidRevenue(kpi(paidRevenueCurrent, paidRevenuePrevious, comparePrevious))
                         .build())
@@ -171,6 +206,31 @@ public class AdminDashboardMetricsServiceImpl implements AdminDashboardMetricsSe
     ) {
         List<TimeBucket> currentBuckets = buildBuckets(currentRange, bucketType);
         List<TimeBucket> previousBuckets = previousRange == null ? List.of() : buildBuckets(previousRange, bucketType);
+
+        List<User> currentUsers = userRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
+        List<User> previousUsers = previousRange == null ? List.of() : userRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(
+                previousRange.start.toLocalDateTime(),
+                previousRange.end.toLocalDateTime()
+        );
+        List<java.time.LocalDateTime> currentCompanyCreatedAtValues = companyRepository.findCreatedAtValuesInRange(
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
+        List<java.time.LocalDateTime> previousCompanyCreatedAtValues = previousRange == null ? List.of() : companyRepository.findCreatedAtValuesInRange(
+                previousRange.start.toLocalDateTime(),
+                previousRange.end.toLocalDateTime()
+        );
+        List<Job> currentJobs = jobRepository.findApprovedActivePostedInRange(
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
+        List<Job> previousJobs = previousRange == null ? List.of() : jobRepository.findApprovedActivePostedInRange(
+                previousRange.start.toLocalDateTime(),
+                previousRange.end.toLocalDateTime()
+        );
         List<PaymentOrder> currentOrders = paymentOrderRepository.findByCreatedAtBetweenOrderByCreatedAtAsc(
                 currentRange.start.toLocalDateTime(),
                 currentRange.end.toLocalDateTime()
@@ -184,6 +244,36 @@ public class AdminDashboardMetricsServiceImpl implements AdminDashboardMetricsSe
         long[] currentRevenue = new long[currentBuckets.size()];
         long[] previousCount = new long[currentBuckets.size()];
         long[] previousRevenue = new long[currentBuckets.size()];
+        long[] currentUsersCount = new long[currentBuckets.size()];
+        long[] previousUsersCount = new long[currentBuckets.size()];
+        long[] currentCompaniesCount = new long[currentBuckets.size()];
+        long[] previousCompaniesCount = new long[currentBuckets.size()];
+        long[] currentJobsCount = new long[currentBuckets.size()];
+        long[] previousJobsCount = new long[currentBuckets.size()];
+        long[] currentActivePlansCount = new long[currentBuckets.size()];
+        long[] previousActivePlansCount = new long[currentBuckets.size()];
+        List<Set<Integer>> currentActivePlansSets = new ArrayList<>();
+        List<Set<Integer>> previousActivePlansSets = new ArrayList<>();
+        for (int i = 0; i < currentBuckets.size(); i++) {
+            currentActivePlansSets.add(new HashSet<>());
+            previousActivePlansSets.add(new HashSet<>());
+        }
+
+        for (User user : currentUsers) {
+            if (user.getCreatedAt() == null) continue;
+            int idx = findBucketIndex(currentBuckets, user.getCreatedAt().atZone(currentRange.start.getZone()));
+            if (idx >= 0) currentUsersCount[idx]++;
+        }
+        for (java.time.LocalDateTime companyCreatedAt : currentCompanyCreatedAtValues) {
+            if (companyCreatedAt == null) continue;
+            int idx = findBucketIndex(currentBuckets, companyCreatedAt.atZone(currentRange.start.getZone()));
+            if (idx >= 0) currentCompaniesCount[idx]++;
+        }
+        for (Job job : currentJobs) {
+            if (job.getPostedAt() == null) continue;
+            int idx = findBucketIndex(currentBuckets, job.getPostedAt().atZone(currentRange.start.getZone()));
+            if (idx >= 0) currentJobsCount[idx]++;
+        }
 
         for (PaymentOrder order : currentOrders) {
             int idx = findBucketIndex(currentBuckets, order.getCreatedAt().atZone(currentRange.start.getZone()));
@@ -191,18 +281,45 @@ public class AdminDashboardMetricsServiceImpl implements AdminDashboardMetricsSe
                 currentCount[idx]++;
                 if (order.getStatus() == OrderStatus.PAID) {
                     currentRevenue[idx] += Math.round(nvlDouble(order.getTotalAmount()));
+                    if (order.getPlan() != null && order.getPlan().getPlanId() != null) {
+                        currentActivePlansSets.get(idx).add(order.getPlan().getPlanId());
+                    }
                 }
             }
         }
+        for (int i = 0; i < currentActivePlansCount.length; i++) {
+            currentActivePlansCount[i] = currentActivePlansSets.get(i).size();
+        }
         if (comparePrevious) {
+            for (User user : previousUsers) {
+                if (user.getCreatedAt() == null) continue;
+                int idx = findBucketIndex(previousBuckets, user.getCreatedAt().atZone(previousRange.start.getZone()));
+                if (idx >= 0 && idx < previousUsersCount.length) previousUsersCount[idx]++;
+            }
+            for (java.time.LocalDateTime companyCreatedAt : previousCompanyCreatedAtValues) {
+                if (companyCreatedAt == null) continue;
+                int idx = findBucketIndex(previousBuckets, companyCreatedAt.atZone(previousRange.start.getZone()));
+                if (idx >= 0 && idx < previousCompaniesCount.length) previousCompaniesCount[idx]++;
+            }
+            for (Job job : previousJobs) {
+                if (job.getPostedAt() == null) continue;
+                int idx = findBucketIndex(previousBuckets, job.getPostedAt().atZone(previousRange.start.getZone()));
+                if (idx >= 0 && idx < previousJobsCount.length) previousJobsCount[idx]++;
+            }
             for (PaymentOrder order : previousOrders) {
                 int idx = findBucketIndex(previousBuckets, order.getCreatedAt().atZone(previousRange.start.getZone()));
                 if (idx >= 0 && idx < previousCount.length) {
                     previousCount[idx]++;
                     if (order.getStatus() == OrderStatus.PAID) {
                         previousRevenue[idx] += Math.round(nvlDouble(order.getTotalAmount()));
+                        if (order.getPlan() != null && order.getPlan().getPlanId() != null) {
+                            previousActivePlansSets.get(idx).add(order.getPlan().getPlanId());
+                        }
                     }
                 }
+            }
+            for (int i = 0; i < previousActivePlansCount.length; i++) {
+                previousActivePlansCount[i] = previousActivePlansSets.get(i).size();
             }
         }
 
@@ -214,6 +331,14 @@ public class AdminDashboardMetricsServiceImpl implements AdminDashboardMetricsSe
                     .currentRevenue(currentRevenue[i])
                     .previousOrderCount(comparePrevious ? previousCount[i] : 0)
                     .previousRevenue(comparePrevious ? previousRevenue[i] : 0)
+                    .currentTotalUsers(currentUsersCount[i])
+                    .previousTotalUsers(comparePrevious ? previousUsersCount[i] : 0)
+                    .currentTotalCompanies(currentCompaniesCount[i])
+                    .previousTotalCompanies(comparePrevious ? previousCompaniesCount[i] : 0)
+                    .currentTotalJobs(currentJobsCount[i])
+                    .previousTotalJobs(comparePrevious ? previousJobsCount[i] : 0)
+                    .currentActivePlans(currentActivePlansCount[i])
+                    .previousActivePlans(comparePrevious ? previousActivePlansCount[i] : 0)
                     .build());
         }
         return out;

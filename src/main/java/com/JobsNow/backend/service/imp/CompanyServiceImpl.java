@@ -5,9 +5,11 @@ import com.JobsNow.backend.dto.CompanyImageDTO;
 import com.JobsNow.backend.entity.Company;
 import com.JobsNow.backend.entity.CompanyFollower;
 import com.JobsNow.backend.entity.CompanyImage;
+import com.JobsNow.backend.entity.CompanyPost;
 import com.JobsNow.backend.entity.CompanyReview;
 import com.JobsNow.backend.entity.Industry;
 import com.JobsNow.backend.entity.Job;
+import com.JobsNow.backend.entity.JobViewEvent;
 import com.JobsNow.backend.entity.Social;
 import com.JobsNow.backend.entity.User;
 import com.JobsNow.backend.entity.enums.ApplicationStatus;
@@ -26,6 +28,7 @@ import com.JobsNow.backend.repositories.CompanyReviewRepository;
 import com.JobsNow.backend.repositories.ApplicationRepository;
 import com.JobsNow.backend.repositories.IndustryRepository;
 import com.JobsNow.backend.repositories.JobRepository;
+import com.JobsNow.backend.repositories.JobViewEventRepository;
 import com.JobsNow.backend.repositories.UserRepository;
 import com.JobsNow.backend.request.CreateCompanyRequest;
 import com.JobsNow.backend.request.SocialLinkItem;
@@ -67,6 +70,7 @@ public class CompanyServiceImpl implements CompanyService {
     private final CompanyReviewRepository companyReviewRepository;
     private final ApplicationRepository applicationRepository;
     private final JobRepository jobRepository;
+    private final JobViewEventRepository jobViewEventRepository;
     private final UserRepository userRepository;
     private final IndustryRepository industryRepository;
     private final AwsS3Service awsS3Service;
@@ -126,6 +130,7 @@ public class CompanyServiceImpl implements CompanyService {
         company.setCompanySize(request.getCompanySize());
         company.setIsVerified(false);
         company.setJobPostCount(0);
+        company.setCreatedAt(LocalDateTime.now());
         if (request.getNameUserContact() != null) {
             company.setNameUserContact(request.getNameUserContact());
         }
@@ -469,8 +474,8 @@ public class CompanyServiceImpl implements CompanyService {
                 previousRange.start.toLocalDateTime(),
                 previousRange.end.toLocalDateTime()
         );
-        long avgRatingCurrentScaled = Math.round((avgRatingCurrentRaw == null ? 0d : avgRatingCurrentRaw) * 100);
-        long avgRatingPreviousScaled = Math.round((avgRatingPreviousRaw == null ? 0d : avgRatingPreviousRaw) * 100);
+        long avgRatingCurrentScaled = Math.round((avgRatingCurrentRaw == null ? 0d : avgRatingCurrentRaw));
+        long avgRatingPreviousScaled = Math.round((avgRatingPreviousRaw == null ? 0d : avgRatingPreviousRaw));
 
         long applicationsCurrent = nullToZero(applicationRepository.countByJob_Company_CompanyIdAndAppliedAtBetween(
                 company.getCompanyId(),
@@ -496,9 +501,20 @@ public class CompanyServiceImpl implements CompanyService {
                 previousRange.end.toLocalDateTime()
         );
 
+        long jobViewsCurrent = jobViewEventRepository.countByCompanyInRange(
+                company.getCompanyId(),
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
+        long jobViewsPrevious = previousRange == null ? 0 : jobViewEventRepository.countByCompanyInRange(
+                company.getCompanyId(),
+                previousRange.start.toLocalDateTime(),
+                previousRange.end.toLocalDateTime()
+        );
+        long totalJobApplies = applicationsCurrent;
+        long totalJobAppliesPrevious = applicationsPrevious;
+
         List<Job> companyJobs = jobRepository.findByCompany_CompanyId(company.getCompanyId());
-        long totalJobViews = companyJobs.stream().mapToLong(j -> nvlInt(j.getViewCount())).sum();
-        long totalJobApplies = companyJobs.stream().mapToLong(j -> nvlInt(j.getApplyCount())).sum();
 
         List<CompanyDashboardMetricsResponse.RatingDistributionItem> ratingDistribution = buildRatingDistribution(
                 company.getCompanyId(),
@@ -516,10 +532,41 @@ public class CompanyServiceImpl implements CompanyService {
                 bucketType,
                 comparePrevious
         );
+        Map<Integer, Long> viewCountByJobId = new HashMap<>();
+        for (Object[] row : jobViewEventRepository.countViewsByJobInRange(
+                company.getCompanyId(),
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        )) {
+            Integer jobId = row[0] == null ? null : ((Number) row[0]).intValue();
+            long views = row[1] == null ? 0L : ((Number) row[1]).longValue();
+            if (jobId != null) {
+                viewCountByJobId.put(jobId, views);
+            }
+        }
+        Map<Integer, Long> applyCountByJobId = new HashMap<>();
+        for (Object[] row : applicationRepository.countAppliesByJobInRange(
+                company.getCompanyId(),
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        )) {
+            Integer jobId = row[0] == null ? null : ((Number) row[0]).intValue();
+            long applies = row[1] == null ? 0L : ((Number) row[1]).longValue();
+            if (jobId != null) {
+                applyCountByJobId.put(jobId, applies);
+            }
+        }
         List<CompanyDashboardMetricsResponse.TopJobItem> topJobs = companyJobs.stream()
-                .sorted(Comparator.comparingLong((Job j) -> nvlInt(j.getApplyCount()) * 10L + nvlInt(j.getViewCount())).reversed())
+                .sorted(Comparator.comparingLong(
+                                (Job j) -> applyCountByJobId.getOrDefault(j.getJobId(), 0L) * 10L
+                                        + viewCountByJobId.getOrDefault(j.getJobId(), 0L)
+                        ).reversed())
                 .limit(8)
-                .map(this::toTopJobItem)
+                .map(job -> toTopJobItem(
+                        job,
+                        viewCountByJobId.getOrDefault(job.getJobId(), 0L),
+                        applyCountByJobId.getOrDefault(job.getJobId(), 0L)
+                ))
                 .collect(Collectors.toList());
 
         return CompanyDashboardMetricsResponse.builder()
@@ -536,8 +583,8 @@ public class CompanyServiceImpl implements CompanyService {
                         .approvedPosts(kpiValue(approvedPostsCurrent, approvedPostsPrevious, comparePrevious))
                         .applications(kpiValue(applicationsCurrent, applicationsPrevious, comparePrevious))
                         .avgRatingX100(kpiValue(avgRatingCurrentScaled, avgRatingPreviousScaled, comparePrevious))
-                        .jobViews(CompanyDashboardMetricsResponse.KpiValue.builder().value(totalJobViews).deltaPercent(null).build())
-                        .jobApplies(CompanyDashboardMetricsResponse.KpiValue.builder().value(totalJobApplies).deltaPercent(null).build())
+                        .jobViews(kpiValue(jobViewsCurrent, jobViewsPrevious, comparePrevious))
+                        .jobApplies(kpiValue(totalJobApplies, totalJobAppliesPrevious, comparePrevious))
                         .build())
                 .trend(trend)
                 .ratingDistribution(ratingDistribution)
@@ -659,6 +706,23 @@ public class CompanyServiceImpl implements CompanyService {
                 currentRange.start.toLocalDateTime(),
                 currentRange.end.toLocalDateTime()
         );
+        List<CompanyReview> reviewCurrent = companyReviewRepository.findByCompanyCompanyIdAndStatusAndCreatedAtBetweenOrderByCreatedAtAsc(
+                companyId,
+                CompanyReviewStatus.APPROVED,
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
+        List<CompanyPost> approvedPostCurrent = companyPostRepository.findByCompany_CompanyIdAndStatusAndPublishedAtBetweenOrderByPublishedAtAsc(
+                companyId,
+                CompanyPostStatus.PUBLISHED,
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
+        List<JobViewEvent> jobViewCurrent = jobViewEventRepository.findByJob_Company_CompanyIdAndViewedAtBetweenOrderByViewedAtAsc(
+                companyId,
+                currentRange.start.toLocalDateTime(),
+                currentRange.end.toLocalDateTime()
+        );
         List<CompanyFollower> followerPrevious = previousRange == null ? List.of() :
                 companyFollowerRepository.findByCompanyCompanyIdAndCreatedAtBetweenOrderByCreatedAtAsc(
                         companyId,
@@ -671,11 +735,45 @@ public class CompanyServiceImpl implements CompanyService {
                         previousRange.start.toLocalDateTime(),
                         previousRange.end.toLocalDateTime()
                 );
+        List<CompanyReview> reviewPrevious = previousRange == null ? List.of() :
+                companyReviewRepository.findByCompanyCompanyIdAndStatusAndCreatedAtBetweenOrderByCreatedAtAsc(
+                        companyId,
+                        CompanyReviewStatus.APPROVED,
+                        previousRange.start.toLocalDateTime(),
+                        previousRange.end.toLocalDateTime()
+                );
+        List<CompanyPost> approvedPostPrevious = previousRange == null ? List.of() :
+                companyPostRepository.findByCompany_CompanyIdAndStatusAndPublishedAtBetweenOrderByPublishedAtAsc(
+                        companyId,
+                        CompanyPostStatus.PUBLISHED,
+                        previousRange.start.toLocalDateTime(),
+                        previousRange.end.toLocalDateTime()
+                );
+        List<JobViewEvent> jobViewPrevious = previousRange == null ? List.of() :
+                jobViewEventRepository.findByJob_Company_CompanyIdAndViewedAtBetweenOrderByViewedAtAsc(
+                        companyId,
+                        previousRange.start.toLocalDateTime(),
+                        previousRange.end.toLocalDateTime()
+                );
 
         long[] currentFollowerCounts = new long[currentBuckets.size()];
         long[] currentApplicationCounts = new long[currentBuckets.size()];
+        long[] currentReviewCounts = new long[currentBuckets.size()];
+        long[] currentApprovedPostCounts = new long[currentBuckets.size()];
+        long[] currentJobViewCounts = new long[currentBuckets.size()];
+        long[] currentJobApplyCounts = new long[currentBuckets.size()];
+        long[] currentAvgRating = new long[currentBuckets.size()];
+        long[] currentReviewRatingSum = new long[currentBuckets.size()];
+        long[] currentReviewRatingCount = new long[currentBuckets.size()];
         long[] previousFollowerCounts = new long[currentBuckets.size()];
         long[] previousApplicationCounts = new long[currentBuckets.size()];
+        long[] previousReviewCounts = new long[currentBuckets.size()];
+        long[] previousApprovedPostCounts = new long[currentBuckets.size()];
+        long[] previousJobViewCounts = new long[currentBuckets.size()];
+        long[] previousJobApplyCounts = new long[currentBuckets.size()];
+        long[] previousAvgRating = new long[currentBuckets.size()];
+        long[] previousReviewRatingSum = new long[currentBuckets.size()];
+        long[] previousReviewRatingCount = new long[currentBuckets.size()];
 
         for (CompanyFollower follower : followerCurrent) {
             int idx = findBucketIndex(currentBuckets, follower.getCreatedAt().atZone(currentRange.start.getZone()));
@@ -683,7 +781,32 @@ public class CompanyServiceImpl implements CompanyService {
         }
         for (com.JobsNow.backend.entity.Application app : applicationCurrent) {
             int idx = findBucketIndex(currentBuckets, app.getAppliedAt().atZone(currentRange.start.getZone()));
-            if (idx >= 0) currentApplicationCounts[idx]++;
+            if (idx >= 0) {
+                currentApplicationCounts[idx]++;
+                currentJobApplyCounts[idx]++;
+            }
+        }
+        for (CompanyReview review : reviewCurrent) {
+            int idx = findBucketIndex(currentBuckets, review.getCreatedAt().atZone(currentRange.start.getZone()));
+            if (idx >= 0) {
+                currentReviewCounts[idx]++;
+                currentReviewRatingSum[idx] += review.getRating() == null ? 0 : review.getRating();
+                currentReviewRatingCount[idx]++;
+            }
+        }
+        for (CompanyPost post : approvedPostCurrent) {
+            if (post.getPublishedAt() == null) continue;
+            int idx = findBucketIndex(currentBuckets, post.getPublishedAt().atZone(currentRange.start.getZone()));
+            if (idx >= 0) currentApprovedPostCounts[idx]++;
+        }
+        for (JobViewEvent viewEvent : jobViewCurrent) {
+            int idx = findBucketIndex(currentBuckets, viewEvent.getViewedAt().atZone(currentRange.start.getZone()));
+            if (idx >= 0) currentJobViewCounts[idx]++;
+        }
+        for (int i = 0; i < currentBuckets.size(); i++) {
+            currentAvgRating[i] = currentReviewRatingCount[i] <= 0
+                    ? 0
+                    : Math.round(currentReviewRatingSum[i] / currentReviewRatingCount[i]);
         }
         if (comparePrevious) {
             for (CompanyFollower follower : followerPrevious) {
@@ -692,7 +815,32 @@ public class CompanyServiceImpl implements CompanyService {
             }
             for (com.JobsNow.backend.entity.Application app : applicationPrevious) {
                 int idx = findBucketIndex(previousBuckets, app.getAppliedAt().atZone(previousRange.start.getZone()));
-                if (idx >= 0 && idx < previousApplicationCounts.length) previousApplicationCounts[idx]++;
+                if (idx >= 0 && idx < previousApplicationCounts.length) {
+                    previousApplicationCounts[idx]++;
+                    previousJobApplyCounts[idx]++;
+                }
+            }
+            for (CompanyReview review : reviewPrevious) {
+                int idx = findBucketIndex(previousBuckets, review.getCreatedAt().atZone(previousRange.start.getZone()));
+                if (idx >= 0 && idx < previousReviewCounts.length) {
+                    previousReviewCounts[idx]++;
+                    previousReviewRatingSum[idx] += review.getRating() == null ? 0 : review.getRating();
+                    previousReviewRatingCount[idx]++;
+                }
+            }
+            for (CompanyPost post : approvedPostPrevious) {
+                if (post.getPublishedAt() == null) continue;
+                int idx = findBucketIndex(previousBuckets, post.getPublishedAt().atZone(previousRange.start.getZone()));
+                if (idx >= 0 && idx < previousApprovedPostCounts.length) previousApprovedPostCounts[idx]++;
+            }
+            for (JobViewEvent viewEvent : jobViewPrevious) {
+                int idx = findBucketIndex(previousBuckets, viewEvent.getViewedAt().atZone(previousRange.start.getZone()));
+                if (idx >= 0 && idx < previousJobViewCounts.length) previousJobViewCounts[idx]++;
+            }
+            for (int i = 0; i < previousBuckets.size() && i < previousAvgRating.length; i++) {
+                previousAvgRating[i] = previousReviewRatingCount[i] <= 0
+                        ? 0
+                        : Math.round(previousReviewRatingSum[i] / previousReviewRatingCount[i]);
             }
         }
 
@@ -704,14 +852,22 @@ public class CompanyServiceImpl implements CompanyService {
                     .previousFollowers(comparePrevious ? previousFollowerCounts[i] : 0)
                     .currentApplications(currentApplicationCounts[i])
                     .previousApplications(comparePrevious ? previousApplicationCounts[i] : 0)
+                    .currentReviews(currentReviewCounts[i])
+                    .previousReviews(comparePrevious ? previousReviewCounts[i] : 0)
+                    .currentApprovedPosts(currentApprovedPostCounts[i])
+                    .previousApprovedPosts(comparePrevious ? previousApprovedPostCounts[i] : 0)
+                    .currentJobViews(currentJobViewCounts[i])
+                    .previousJobViews(comparePrevious ? previousJobViewCounts[i] : 0)
+                    .currentJobApplies(currentJobApplyCounts[i])
+                    .previousJobApplies(comparePrevious ? previousJobApplyCounts[i] : 0)
+                    .currentAvgRating(currentAvgRating[i])
+                    .previousAvgRating(comparePrevious ? previousAvgRating[i] : 0)
                     .build());
         }
         return out;
     }
 
-    private CompanyDashboardMetricsResponse.TopJobItem toTopJobItem(Job job) {
-        long views = nvlInt(job.getViewCount());
-        long applies = nvlInt(job.getApplyCount());
+    private CompanyDashboardMetricsResponse.TopJobItem toTopJobItem(Job job, long views, long applies) {
         double conversion = views <= 0 ? 0d : (applies * 100d) / views;
         return CompanyDashboardMetricsResponse.TopJobItem.builder()
                 .jobId(job.getJobId())
@@ -790,7 +946,7 @@ public class CompanyServiceImpl implements CompanyService {
     }
 
     private TimeRange buildPreviousRange(TimeRange current) {
-        long nanos = Math.max(1, current.end.toInstant().toEpochMilli() - current.start.toInstant().toEpochMilli() + 1);
+        long nanos = Math.max(1, current.nanos());
         ZonedDateTime previousEnd = current.start.minusNanos(1);
         ZonedDateTime previousStart = previousEnd.minusNanos(nanos - 1);
         return new TimeRange(previousStart, previousEnd);
@@ -897,6 +1053,10 @@ public class CompanyServiceImpl implements CompanyService {
     private record TimeRange(ZonedDateTime start, ZonedDateTime end) {
         long daySpan() {
             return java.time.Duration.between(start, end).toDays() + 1;
+        }
+
+        long nanos() {
+            return java.time.Duration.between(start, end).toNanos() + 1;
         }
     }
 

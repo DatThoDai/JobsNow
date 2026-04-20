@@ -49,6 +49,7 @@ public class JobServiceImpl implements JobService {
     private final SkillRepository skillRepository;
     private final JobSkillRepository jobSkillRepository;
     private final JobBoostRepository jobBoostRepository;
+    private final JobViewEventRepository jobViewEventRepository;
     private final MajorRepository majorRepository;
     private final EmailService emailService;
     private final CompanyQuotaService companyQuotaService;
@@ -180,6 +181,10 @@ public class JobServiceImpl implements JobService {
             job.setViewCount(job.getViewCount() + 1);
         }
         jobRepository.save(job);
+        jobViewEventRepository.save(JobViewEvent.builder()
+                .job(job)
+                .viewedAt(LocalDateTime.now())
+                .build());
 
         return enrichBoostStatus(JobMapper.toJobDTO(job));
     }

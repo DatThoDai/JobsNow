@@ -74,4 +74,11 @@ public interface CompanyReviewRepository extends JpaRepository<CompanyReview, In
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    List<CompanyReview> findByCompanyCompanyIdAndStatusAndCreatedAtBetweenOrderByCreatedAtAsc(
+            Integer companyId,
+            CompanyReviewStatus status,
+            LocalDateTime start,
+            LocalDateTime end
+    );
 }
