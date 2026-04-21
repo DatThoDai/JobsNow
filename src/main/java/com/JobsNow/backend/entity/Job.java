@@ -4,6 +4,8 @@ import com.JobsNow.backend.entity.enums.ApplicationLanguage;
 import com.JobsNow.backend.entity.enums.EducationLevel;
 import com.JobsNow.backend.entity.enums.GenderRequirement;
 import com.JobsNow.backend.entity.enums.JobType;
+import com.JobsNow.backend.entity.enums.SalaryCurrency;
+import com.JobsNow.backend.entity.enums.SalaryType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -43,6 +45,12 @@ public class Job {
     private Double salaryMin;
 
     private Double salaryMax;
+
+    @Enumerated(EnumType.STRING)
+    private SalaryType salaryType = SalaryType.RANGE;
+
+    @Enumerated(EnumType.STRING)
+    private SalaryCurrency salaryCurrency = SalaryCurrency.VND;
 
     private String yearsOfExperience;
 

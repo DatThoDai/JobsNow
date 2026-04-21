@@ -3,6 +3,7 @@ package com.JobsNow.backend.repositories;
 import com.JobsNow.backend.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,4 +13,6 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     boolean existsByPhone(String phone);
     Long countByIsVerifiedTrue();
     List<User> findByRole_RoleName(String roleName);
+    long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+    List<User> findByCreatedAtBetweenOrderByCreatedAtAsc(LocalDateTime start, LocalDateTime end);
 }

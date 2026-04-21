@@ -33,6 +33,9 @@ public class CompanyFeatureQuota {
 
     private Integer remainingAiCvBuilderTrials = 0;
 
+    @Column(columnDefinition = "integer default 0")
+    private Integer priorityLevel = 0;
+
     private LocalDateTime expiresAt;
 
     @Column(nullable = false)

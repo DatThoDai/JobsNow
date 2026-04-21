@@ -68,4 +68,15 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Inte
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    @Query("""
+        select count(distinct o.plan.planId)
+        from PaymentOrder o
+        where o.status = :status and o.createdAt between :start and :end
+    """)
+    long countDistinctPlansByStatusAndCreatedAtBetween(
+            @Param("status") OrderStatus status,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 }

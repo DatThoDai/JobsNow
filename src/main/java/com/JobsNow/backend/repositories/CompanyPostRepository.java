@@ -45,6 +45,13 @@ public interface CompanyPostRepository extends JpaRepository<CompanyPost, Intege
             LocalDateTime end
     );
 
+    List<CompanyPost> findByCompany_CompanyIdAndStatusAndPublishedAtBetweenOrderByPublishedAtAsc(
+            Integer companyId,
+            CompanyPostStatus status,
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
     @Query("""
         select p.status, count(p)
         from CompanyPost p

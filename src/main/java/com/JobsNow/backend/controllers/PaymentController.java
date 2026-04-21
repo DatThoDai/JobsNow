@@ -109,6 +109,28 @@ public class PaymentController {
         return ResponseFactory.success(result);
     }
 
+    @PostMapping("/cancel-pending")
+    public ResponseEntity<?> cancelPendingPayment(
+            @RequestParam(defaultValue = "SUBSCRIPTION") String scope,
+            Authentication authentication) {
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        List<PaymentOrder> pendingOrders = orderRepository.findByUser_UserIdOrderByCreatedAtDesc(user.getUserId())
+                .stream().filter(o -> o.getStatus() == OrderStatus.PENDING 
+                        && o.getPlan() != null 
+                        && scope.equalsIgnoreCase(o.getPlan().getScope()))
+                .collect(Collectors.toList());
+
+        for (PaymentOrder order : pendingOrders) {
+            order.setStatus(OrderStatus.FAILED);
+            orderRepository.save(order);
+        }
+
+        return ResponseFactory.successMessage("Đã hủy giao dịch đang bị kẹt thành công");
+    }
+
     @GetMapping("/vnpay-return")
     public void handleVNPayCallback(
             @RequestParam Map<String, String> allParams,

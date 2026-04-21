@@ -85,6 +85,11 @@ public class CompanyQuotaServiceImpl implements CompanyQuotaService {
         }
 
         quota.setUpdatedAt(now);
+
+        if (plan.getPriorityLevel() != null && plan.getPriorityLevel() > (quota.getPriorityLevel() != null ? quota.getPriorityLevel() : 0)) {
+            quota.setPriorityLevel(plan.getPriorityLevel());
+        }
+
         quotaRepository.save(quota);
     }
 
@@ -209,6 +214,7 @@ public class CompanyQuotaServiceImpl implements CompanyQuotaService {
         quota.setRemainingAiScans(0);
         quota.setAiCvBuilderEnabled(false);
         quota.setRemainingAiCvBuilderTrials(0);
+        quota.setPriorityLevel(0);
         quota.setExpiresAt(null);
         quota.setUpdatedAt(now);
     }

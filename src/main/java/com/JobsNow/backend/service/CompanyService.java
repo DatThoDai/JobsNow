@@ -11,6 +11,7 @@ import java.util.List;
 
 public interface CompanyService {
     List<CompanyDTO> getAllCompanies();
+    List<CompanyDTO> getVipCompanies(int minPriorityLevel, int limit);
     CompanyDTO getCompanyById(Integer companyId);
     CompanyDTO getMyCompany(String email);
     CompanyDTO createMyCompany(String email, CreateCompanyRequest request, MultipartFile logoFile);

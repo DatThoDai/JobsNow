@@ -41,6 +41,7 @@ public class CompanyMapper {
                 .industries(industries)
                 .isVerified(company.getIsVerified())
                 .jobPostCount(company.getJobPostCount())
+                .createdAt(company.getCreatedAt())
                 .email(company.getUser().getEmail())
                 .phone(company.getUser().getPhone())
                 .images(company.getImages() != null

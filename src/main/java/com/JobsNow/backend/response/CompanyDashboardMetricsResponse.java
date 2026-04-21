@@ -65,6 +65,16 @@ public class CompanyDashboardMetricsResponse {
         private long previousFollowers;
         private long currentApplications;
         private long previousApplications;
+        private long currentReviews;
+        private long previousReviews;
+        private long currentApprovedPosts;
+        private long previousApprovedPosts;
+        private long currentJobViews;
+        private long previousJobViews;
+        private long currentJobApplies;
+        private long previousJobApplies;
+        private long currentAvgRating;
+        private long previousAvgRating;
     }
 
     @Data
