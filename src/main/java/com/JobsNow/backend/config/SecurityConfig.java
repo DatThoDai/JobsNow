@@ -68,7 +68,7 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.GET, "/company/admin/posts/**").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.PUT, "/company/admin/posts/**").hasRole("ADMIN");
                     request.requestMatchers(HttpMethod.GET, "/handbook/**").permitAll();
-                    request.requestMatchers(HttpMethod.GET, "/company/all", "/company/search").permitAll();
+                    request.requestMatchers(HttpMethod.GET, "/company/all", "/company/search", "/company/vip").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/company/{companyId}").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/company/{companyId}/follow").authenticated();
                     request.requestMatchers(HttpMethod.GET, "/company/**").permitAll();

@@ -27,6 +27,7 @@ public class CompanyDTO {
     private List<IndustryDTO> industries;
     private Boolean isVerified;
     private Integer jobPostCount;
+    private Integer priorityLevel;
     private Long followerCount;
     private LocalDateTime createdAt;
 

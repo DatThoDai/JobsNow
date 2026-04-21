@@ -20,6 +20,7 @@ import com.JobsNow.backend.entity.enums.SocialPlatform;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.CompanyMapper;
+import com.JobsNow.backend.repositories.CompanyFeatureQuotaRepository;
 import com.JobsNow.backend.repositories.CompanyImageRepository;
 import com.JobsNow.backend.repositories.CompanyFollowerRepository;
 import com.JobsNow.backend.repositories.CompanyPostRepository;
@@ -70,6 +71,7 @@ public class CompanyServiceImpl implements CompanyService {
     private final UserRepository userRepository;
     private final IndustryRepository industryRepository;
     private final AwsS3Service awsS3Service;
+    private final CompanyFeatureQuotaRepository companyFeatureQuotaRepository;
 
     @Value("${aws.s3.endpointUrl}")
     private String s3PublicBaseUrl;
@@ -78,7 +80,35 @@ public class CompanyServiceImpl implements CompanyService {
         List<Company> companies = companyRepository.findAll();
         return companies.stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsVerified()))
-                .map(CompanyMapper::toCompanyDTO)
+                .map(c -> {
+                    CompanyDTO dto = CompanyMapper.toCompanyDTO(c);
+                    companyFeatureQuotaRepository.findByCompany_CompanyId(c.getCompanyId())
+                            .ifPresent(q -> {
+                                boolean isExpired = q.getExpiresAt() != null && q.getExpiresAt().isBefore(java.time.LocalDateTime.now());
+                                if (isExpired) {
+                                    dto.setPriorityLevel(0);
+                                } else {
+                                    dto.setPriorityLevel(q.getPriorityLevel() != null ? q.getPriorityLevel() : 0);
+                                }
+                            });
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<CompanyDTO> getVipCompanies(int minPriorityLevel, int limit) {
+        return companyFeatureQuotaRepository.findActiveByMinPriorityLevel(minPriorityLevel).stream()
+                .filter(q -> q.getCompany() != null && Boolean.TRUE.equals(q.getCompany().getIsVerified()))
+                .sorted((a, b) -> Integer.compare(
+                        b.getPriorityLevel() != null ? b.getPriorityLevel() : 0,
+                        a.getPriorityLevel() != null ? a.getPriorityLevel() : 0))
+                .limit(limit)
+                .map(q -> {
+                    CompanyDTO dto = CompanyMapper.toCompanyDTO(q.getCompany());
+                    dto.setPriorityLevel(q.getPriorityLevel() != null ? q.getPriorityLevel() : 0);
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
 

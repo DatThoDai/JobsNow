@@ -60,6 +60,13 @@ public class CompanyController {
         return ResponseFactory.success(companyService.getAllCompanies());
     }
 
+    @GetMapping("/vip")
+    public ResponseEntity<?> getVipCompanies(
+            @RequestParam(defaultValue = "2") int minLevel,
+            @RequestParam(defaultValue = "8") int limit) {
+        return ResponseFactory.success(companyService.getVipCompanies(minLevel, limit));
+    }
+
     @GetMapping("/{companyId}")
     public ResponseEntity<?> getCompanyById(@PathVariable Integer companyId){
         return ResponseFactory.success(companyService.getCompanyById(companyId));
