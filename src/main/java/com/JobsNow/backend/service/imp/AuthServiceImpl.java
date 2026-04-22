@@ -15,10 +15,14 @@ import com.JobsNow.backend.request.RegisterRequest;
 import com.JobsNow.backend.request.VerifyOtpRequest;
 import com.JobsNow.backend.response.AuthResponse;
 import com.JobsNow.backend.dto.OtpLoginData;
+import com.JobsNow.backend.dto.linkedin.LinkedInOAuthResult;
+import com.JobsNow.backend.dto.linkedin.LinkedInUserInfo;
 import com.JobsNow.backend.service.AuthService;
 import com.JobsNow.backend.service.AwsS3Service;
 import com.JobsNow.backend.service.EmailService;
 import com.JobsNow.backend.service.GoogleTokenVerifier;
+import com.JobsNow.backend.service.LinkedInTokenVerifier;
+import com.JobsNow.backend.service.SocialCredentialService;
 import com.JobsNow.backend.service.LoginOtpRedisService;
 import com.JobsNow.backend.service.PendingRegistrationService;
 import com.JobsNow.backend.service.CompanyQuotaService;
@@ -43,6 +47,8 @@ public class AuthServiceImpl implements AuthService {
     private final PendingRegistrationService pendingRegistrationService;
     private final LoginOtpRedisService loginOtpRedisService;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final LinkedInTokenVerifier linkedInTokenVerifier;
+    private final SocialCredentialService socialCredentialService;
     private final JobSeekerProfileRepository jobSeekerProfileRepository;
     private final CompanyRepository companyRepository;
     private final AwsS3Service awsS3Service;
@@ -341,6 +347,51 @@ public class AuthServiceImpl implements AuthService {
                 candidateQuotaService.ensureDefaultQuota(user.getUserId(), 0, 3);
             }
         }
+
+        return buildAuthResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse loginWithLinkedIn(String code, String roleName, String redirectUri) {
+        LinkedInOAuthResult oauth = linkedInTokenVerifier.completeLinkedInLogin(code, redirectUri);
+        LinkedInUserInfo info = oauth.getUserInfo();
+
+        User user = userRepository.findByEmail(info.getEmail()).orElse(null);
+
+        if (user == null) {
+            String normalizedRole = "ROLE_COMPANY".equals(roleName) ? "ROLE_COMPANY" : "ROLE_JOBSEEKER";
+            Role role = roleRepository.findByRoleName(normalizedRole)
+                    .orElseThrow(() -> new BadRequestException("Role not found"));
+
+            user = new User();
+            user.setEmail(info.getEmail());
+            user.setFullName(info.getName() != null ? info.getName() : info.getEmail());
+            user.setRole(role);
+            user.setIsVerified(true);
+            user.setCreatedAt(LocalDateTime.now());
+            user.setPasswordHash(null);
+            userRepository.save(user);
+
+            if ("ROLE_COMPANY".equals(normalizedRole)) {
+                Company company = new Company();
+                company.setUser(user);
+                company.setCompanyName(generateCompanyName(info.getName(), info.getEmail()));
+                company.setLogoUrl(info.getPicture() != null ? info.getPicture() : DEFAULT_AVATAR_URL);
+                company.setIsVerified(true);
+                company.setJobPostCount(0);
+                companyRepository.save(company);
+                companyQuotaService.ensureDefaultQuota(company.getCompanyId(), 5);
+            } else {
+                JobSeekerProfile profile = new JobSeekerProfile();
+                profile.setUser(user);
+                profile.setAvatarUrl(info.getPicture() != null ? info.getPicture() : DEFAULT_AVATAR_URL);
+                jobSeekerProfileRepository.save(profile);
+                candidateQuotaService.ensureDefaultQuota(user.getUserId(), 0, 3);
+            }
+        }
+
+        socialCredentialService.upsertLinkedIn(user, oauth);
 
         return buildAuthResponse(user);
     }
