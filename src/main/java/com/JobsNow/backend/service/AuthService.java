@@ -19,4 +19,6 @@ public interface AuthService {
     AuthResponse verifyLoginOtp(String email, String otp, String clientIp);
 
     AuthResponse loginWithGoogle(String idToken, String roleName);
+
+    AuthResponse loginWithLinkedIn(String code, String roleName, String redirectUri);
 }
