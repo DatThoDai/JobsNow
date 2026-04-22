@@ -49,6 +49,44 @@ public class LinkedInTokenVerifier {
         return builder.build();
     }
 
+    /**
+     * Refreshes LinkedIn access token using refresh token.
+     */
+    public LinkedInOAuthResult refreshAccessToken(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new BadRequestException("LinkedIn refresh token is missing");
+        }
+
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("grant_type", "refresh_token");
+        body.add("refresh_token", refreshToken);
+        body.add("client_id", clientId);
+        body.add("client_secret", clientSecret);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        Map<String, Object> tokenResponse;
+        try {
+            tokenResponse = restTemplate.postForObject(
+                    "https://www.linkedin.com/oauth/v2/accessToken",
+                    new HttpEntity<>(body, headers),
+                    Map.class
+            );
+        } catch (Exception e) {
+            throw new BadRequestException("Failed to refresh LinkedIn access token");
+        }
+
+        String accessToken = extractAccessToken(tokenResponse);
+        return LinkedInOAuthResult.builder()
+                .accessToken(accessToken)
+                .refreshToken(extractString(tokenResponse, "refresh_token"))
+                .expiresInSeconds(extractExpiresIn(tokenResponse))
+                .scope(extractString(tokenResponse, "scope"))
+                .tokenType(extractString(tokenResponse, "token_type"))
+                .build();
+    }
+
     private String resolveRedirectUri(String redirectUri) {
         if (redirectUri == null || redirectUri.isBlank()) {
             return configuredRedirectUri;
@@ -71,7 +109,6 @@ public class LinkedInTokenVerifier {
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
         try {
-            @SuppressWarnings("unchecked")
             Map<String, Object> tokenResponse = restTemplate.postForObject(
                     "https://www.linkedin.com/oauth/v2/accessToken",
                     new HttpEntity<>(body, headers),

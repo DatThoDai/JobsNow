@@ -17,26 +17,16 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class SocialCredentialService {
+    private static final long REFRESH_SKEW_SECONDS = 120;
 
     private final SocialCredentialRepository socialCredentialRepository;
-    private final TokenEncryptionService tokenEncryption;
+    private final LinkedInTokenVerifier linkedInTokenVerifier;
 
     @Transactional
     public void upsertLinkedIn(User user, LinkedInOAuthResult result) {
-        if (!tokenEncryption.isEnabled()) {
-            throw new BadRequestException(
-                    "LinkedIn token storage requires oauth.token.encryption.key (Base64 AES-256 key)."
-            );
-        }
-
         LinkedInUserInfo info = result.getUserInfo();
         if (info == null || info.getLinkedInId() == null || info.getLinkedInId().isBlank()) {
             throw new BadRequestException("LinkedIn subject (sub) is missing");
-        }
-
-        Instant expiresAt = null;
-        if (result.getExpiresInSeconds() != null && result.getExpiresInSeconds() > 0) {
-            expiresAt = Instant.now().plusSeconds(result.getExpiresInSeconds());
         }
 
         Optional<SocialCredential> byUser =
@@ -63,17 +53,57 @@ public class SocialCredentialService {
         }
 
         cred.setProviderSubject(info.getLinkedInId());
-        cred.setAccessTokenEnc(tokenEncryption.encrypt(result.getAccessToken()));
+        applyTokenPayload(cred, result);
 
-        if (result.getRefreshToken() != null) {
-            cred.setRefreshTokenEnc(tokenEncryption.encrypt(result.getRefreshToken()));
+        socialCredentialRepository.save(cred);
+    }
+
+    @Transactional
+    public String getValidLinkedInAccessToken(Integer userId) {
+        SocialCredential cred = socialCredentialRepository
+                .findByProviderAndUser_UserId(SocialAuthProvider.LINKEDIN, userId)
+                .orElseThrow(() -> new BadRequestException("LinkedIn account is not connected"));
+
+        if (!needsRefresh(cred)) {
+            return cred.getAccessTokenEnc();
+        }
+
+        if (cred.getRefreshTokenEnc() == null || cred.getRefreshTokenEnc().isBlank()) {
+            throw new BadRequestException("LinkedIn token expired. Please reconnect LinkedIn.");
+        }
+
+        String refreshToken = cred.getRefreshTokenEnc();
+        LinkedInOAuthResult refreshed = linkedInTokenVerifier.refreshAccessToken(refreshToken);
+
+        applyTokenPayload(cred, refreshed);
+        socialCredentialRepository.save(cred);
+
+        return cred.getAccessTokenEnc();
+    }
+
+    private boolean needsRefresh(SocialCredential cred) {
+        if (cred.getExpiresAt() == null) {
+            return false;
+        }
+        Instant threshold = Instant.now().plusSeconds(REFRESH_SKEW_SECONDS);
+        return !cred.getExpiresAt().isAfter(threshold);
+    }
+
+    private void applyTokenPayload(SocialCredential cred, LinkedInOAuthResult payload) {
+        Instant expiresAt = null;
+        if (payload.getExpiresInSeconds() != null && payload.getExpiresInSeconds() > 0) {
+            expiresAt = Instant.now().plusSeconds(payload.getExpiresInSeconds());
+        }
+
+        cred.setAccessTokenEnc(payload.getAccessToken());
+
+        if (payload.getRefreshToken() != null && !payload.getRefreshToken().isBlank()) {
+            cred.setRefreshTokenEnc(payload.getRefreshToken());
         } else if (cred.getId() == null) {
             cred.setRefreshTokenEnc(null);
         }
 
         cred.setExpiresAt(expiresAt);
-        cred.setScope(result.getScope());
-
-        socialCredentialRepository.save(cred);
+        cred.setScope(payload.getScope());
     }
 }

@@ -25,6 +25,7 @@ public class Message {
     @JoinColumn(name = "sender_id")
     private User sender;
 
+    @Column(columnDefinition = "TEXT")
     private String content;
     private Boolean isRead = false;
     @Enumerated(EnumType.STRING)
