@@ -16,6 +16,7 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer notificationId;
 
+    @Column(columnDefinition = "TEXT")
     private String content;
     private Boolean isRead;
 
