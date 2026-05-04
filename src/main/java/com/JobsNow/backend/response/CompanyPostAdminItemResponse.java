@@ -18,6 +18,7 @@ public class CompanyPostAdminItemResponse {
     private String title;
     private String slug;
     private String excerpt;
+    private String content;
     private String categoryKey;
     private LocalDateTime createdAt;
 }

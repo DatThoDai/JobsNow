@@ -414,6 +414,7 @@ public class CompanyPostServiceImpl implements CompanyPostService {
                 .title(p.getTitle())
                 .slug(p.getSlug())
                 .excerpt(p.getExcerpt())
+                .content(p.getContent())
                 .categoryKey(p.getCategoryKey())
                 .createdAt(p.getCreatedAt())
                 .build();
