@@ -19,11 +19,18 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
 
     List<Job> findByCompany_CompanyId(Integer companyId);
 
-    @Query("SELECT j FROM Job j JOIN FETCH j.company c WHERE j.category.id = :categoryId "
-            + "AND j.jobId <> :excludeId AND j.isActive = true AND j.isApproved = true "
-            + "AND j.isDeleted = false AND j.isExpired = false ORDER BY j.postedAt DESC")
-    List<Job> findRelatedByCategory(
+    @Query("SELECT DISTINCT j FROM Job j "
+            + "JOIN FETCH j.company c "
+            + "LEFT JOIN j.category cat "
+            + "LEFT JOIN cat.industry ind "
+            + "WHERE j.jobId <> :excludeId AND j.isActive = true AND j.isApproved = true "
+            + "AND j.isDeleted = false AND j.isExpired = false "
+            + "AND ((:categoryId IS NOT NULL AND cat.id = :categoryId) "
+            + "OR (:industryId IS NOT NULL AND ind.industryId = :industryId)) "
+            + "ORDER BY j.postedAt DESC")
+    List<Job> findRelatedByCategoryOrIndustry(
             @Param("categoryId") Integer categoryId,
+            @Param("industryId") Integer industryId,
             @Param("excludeId") Integer excludeId,
             Pageable pageable);
 

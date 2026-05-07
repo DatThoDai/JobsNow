@@ -18,6 +18,7 @@ import com.JobsNow.backend.config.VNPayConfig;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -42,6 +43,9 @@ public class PaymentController {
     private final CompanyRepository companyRepository;
     private final CompanyFeatureQuotaRepository quotaRepository;
     private final CandidateFeatureQuotaRepository candidateQuotaRepository;
+
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
 
     @PostMapping("/create")
     public ResponseEntity<?> createPayment(
@@ -146,17 +150,20 @@ public class PaymentController {
         String encodedTxnRef = txnRef != null ? URLEncoder.encode(txnRef, StandardCharsets.UTF_8) : "";
         String encodedFlow = URLEncoder.encode(flow, StandardCharsets.UTF_8);
 
+        String baseUrl = frontendUrl != null ? frontendUrl.replaceAll("/+$", "") : "http://localhost:5173";
+        String redirectPrefix = baseUrl + "/payment-result";
+
         if (!VNPayUtils.isValidSignature(paramsToVerify, vnPayConfig.getVnpHashSecret(), secureHash)) {
-            response.sendRedirect("http://localhost:5173/payment-result?status=invalid&txnRef=" + encodedTxnRef + "&flow=" + encodedFlow);
+            response.sendRedirect(redirectPrefix + "?status=invalid&txnRef=" + encodedTxnRef + "&flow=" + encodedFlow);
             return;
         }
 
         vnPayService.handlePaymentCallback(paramsToVerify);
 
         if ("00".equals(responseCode)) {
-            response.sendRedirect("http://localhost:5173/payment-result?status=success&txnRef=" + encodedTxnRef + "&flow=" + encodedFlow);
+            response.sendRedirect(redirectPrefix + "?status=success&txnRef=" + encodedTxnRef + "&flow=" + encodedFlow);
         } else {
-            response.sendRedirect("http://localhost:5173/payment-result?status=failed&txnRef=" + encodedTxnRef + "&flow=" + encodedFlow);
+            response.sendRedirect(redirectPrefix + "?status=failed&txnRef=" + encodedTxnRef + "&flow=" + encodedFlow);
         }
     }
 

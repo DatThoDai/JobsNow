@@ -236,14 +236,19 @@ public class JobServiceImpl implements JobService {
     public List<JobDTO> getRelatedJobs(Integer jobId, int limit) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new NotFoundException("Job not found"));
-        if (job.getCategory() == null) {
+        Integer categoryId = job.getCategory() != null ? job.getCategory().getId() : null;
+        Integer industryId = (job.getCategory() != null && job.getCategory().getIndustry() != null)
+            ? job.getCategory().getIndustry().getIndustryId()
+            : null;
+        if (categoryId == null && industryId == null) {
             return new ArrayList<>();
         }
         int cap = Math.min(Math.max(limit, 1), 24);
-        List<Job> related = jobRepository.findRelatedByCategory(
-                job.getCategory().getId(),
-                jobId,
-                PageRequest.of(0, cap));
+        List<Job> related = jobRepository.findRelatedByCategoryOrIndustry(
+            categoryId,
+            industryId,
+            jobId,
+            PageRequest.of(0, cap));
         return related.stream().map(JobMapper::toJobDTO).map(this::enrichBoostStatus).toList();
     }
 
