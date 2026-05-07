@@ -1,6 +1,7 @@
 package com.JobsNow.backend.controllers;
 
 import com.JobsNow.backend.request.ApplicationRequest;
+import com.JobsNow.backend.request.SendCustomEmailRequest;
 import com.JobsNow.backend.request.UpdateApplicationStatusRequest;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.ApplicationService;
@@ -46,5 +47,13 @@ public class ApplicationController {
             @RequestBody UpdateApplicationStatusRequest request) {
         applicationService.updateApplicationStatus(applicationId, request);
         return ResponseFactory.successMessage("Application status updated successfully");
+    }
+
+    @PostMapping("/{applicationId}/send-email")
+    public ResponseEntity<?> sendCustomEmail(
+            @PathVariable Integer applicationId,
+            @Valid @RequestBody SendCustomEmailRequest request) {
+        applicationService.sendCustomEmail(applicationId, request);
+        return ResponseFactory.successMessage("Email sent successfully");
     }
 }

@@ -13,6 +13,7 @@ import com.JobsNow.backend.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -84,6 +85,9 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser(Authentication authentication) {
+        if (authentication == null) {
+            return ResponseFactory.error(401, "Unauthorized", HttpStatus.UNAUTHORIZED);
+        }
         String email = authentication.getName();
         return ResponseFactory.success(authService.getCurrentUser(email));
     }

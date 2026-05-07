@@ -33,7 +33,7 @@ public class JWTHelper {
             String data = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload().getSubject();
             return data;
         }catch (Exception e){
-            System.out.println(e.getMessage());
+            // Token expired or invalid
             return null;
         }
     }
