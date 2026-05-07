@@ -104,6 +104,12 @@ public class SecurityConfig {
                     request.requestMatchers(HttpMethod.POST, "/company/*/follow").authenticated();
                     request.requestMatchers(HttpMethod.DELETE, "/company/*/follow").authenticated();
                     // JOBSEEKER
+                    request.requestMatchers(HttpMethod.GET, "/resume/profile/**").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/resume/*/work-experiences").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/resume/*/educations").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/resume/*/projects").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/resume/*/certificates").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
+                    request.requestMatchers(HttpMethod.GET, "/resume/*/skills").hasAnyRole("JOBSEEKER", "ADMIN", "COMPANY");
                     request.requestMatchers("/resume/**").hasRole("JOBSEEKER");
                     request.requestMatchers("/application/apply").hasRole("JOBSEEKER");
                     request.requestMatchers("/application/jobseeker/**").hasRole("JOBSEEKER");
@@ -120,6 +126,7 @@ public class SecurityConfig {
                     request.requestMatchers("/aws/s3/**").authenticated();
                     request.requestMatchers(HttpMethod.POST, "/company/*/reviews").hasRole("JOBSEEKER");
                     request.requestMatchers("/api/ai/**").authenticated();
+                    request.requestMatchers("/api/ai/rag/**").hasAnyRole("COMPANY", "ADMIN");
 
                     request.requestMatchers(HttpMethod.GET, "/plans").permitAll();
                     request.requestMatchers(HttpMethod.POST, "/plans").hasRole("ADMIN");

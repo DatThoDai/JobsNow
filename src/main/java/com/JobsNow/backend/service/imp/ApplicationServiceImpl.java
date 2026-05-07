@@ -22,8 +22,10 @@ import com.JobsNow.backend.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.HtmlUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -160,6 +162,39 @@ public class ApplicationServiceImpl implements ApplicationService {
         }
         String stripped = html.replaceAll("(?s)<[^>]*>", " ").replace("&nbsp;", " ").trim();
         return stripped.isEmpty();
+    }
+
+    @Override
+    public void sendCustomEmail(Integer applicationId, com.JobsNow.backend.request.SendCustomEmailRequest request) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new NotFoundException("Application not found"));
+
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        if (!application.getJob().getCompany().getUser().getEmail().equals(email)) {
+            throw new BadRequestException("You don't have permission to send email to this application");
+        }
+
+        String candidateName = application.getJobSeekerProfile().getUser().getFullName();
+        String jobTitle = application.getJob().getTitle();
+        String companyName = application.getJob().getCompany().getCompanyName();
+        String candidateEmail = application.getJobSeekerProfile().getUser().getEmail();
+
+        if (candidateEmail == null || candidateEmail.isEmpty()) {
+            throw new BadRequestException("Candidate does not have an email address");
+        }
+
+        String body = request.getBodyHtml() != null ? request.getBodyHtml() : "";
+        body = body
+                .replace("[Tên Ứng Viên]", HtmlUtils.htmlEscape(candidateName != null ? candidateName : "Ứng viên"))
+                .replace("[Tên Công Việc]", HtmlUtils.htmlEscape(jobTitle != null ? jobTitle : ""))
+                .replace("[Tên Công Ty]", HtmlUtils.htmlEscape(companyName != null ? companyName : ""));
+
+        try {
+            emailService.sendCustomEmail(candidateEmail, request.getSubject(), body);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to send email: " + e.getMessage());
+        }
     }
 
     @Override

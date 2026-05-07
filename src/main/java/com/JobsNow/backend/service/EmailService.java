@@ -230,4 +230,8 @@ public class EmailService {
                 "</div>";
         sendEmail(to, subject, htmlBody);
     }
+
+    public void sendCustomEmail(String to, String subject, String bodyHtml) throws MessagingException, UnsupportedEncodingException {
+        sendEmail(to, subject, bodyHtml);
+    }
 }
