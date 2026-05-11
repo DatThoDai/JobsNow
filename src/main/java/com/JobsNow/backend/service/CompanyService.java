@@ -5,12 +5,15 @@ import com.JobsNow.backend.request.CreateCompanyRequest;
 import com.JobsNow.backend.dto.CompanyImageDTO;
 import com.JobsNow.backend.request.UpdateCompanyRequest;
 import com.JobsNow.backend.response.CompanyDashboardMetricsResponse;
+import com.JobsNow.backend.response.PagedResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
 public interface CompanyService {
     List<CompanyDTO> getAllCompanies();
+
+    PagedResponse<CompanyDTO> getVerifiedCompaniesPage(int page, int limit);
     List<CompanyDTO> getVipCompanies(int minPriorityLevel, int limit);
     CompanyDTO getCompanyById(Integer companyId);
     CompanyDTO getMyCompany(String email);

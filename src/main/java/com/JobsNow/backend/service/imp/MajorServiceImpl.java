@@ -3,8 +3,12 @@ package com.JobsNow.backend.service.imp;
 import com.JobsNow.backend.entity.Major;
 import com.JobsNow.backend.exception.BadRequestException;
 import com.JobsNow.backend.repositories.MajorRepository;
+import com.JobsNow.backend.response.PagedResponse;
 import com.JobsNow.backend.service.MajorService;
+import com.JobsNow.backend.util.PagingUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,6 +20,20 @@ public class MajorServiceImpl implements MajorService {
     @Override
     public List<Major> getAllMajors() {
         return majorRepository.findAll();
+    }
+
+    @Override
+    public PagedResponse<Major> getMajorsPage(int page, int limit) {
+        int p = PagingUtil.safePage(page);
+        int lim = PagingUtil.safeLimit(limit, 100);
+        Page<Major> pg = majorRepository.findAllByOrderByNameAsc(PageRequest.of(p - 1, lim));
+        return PagedResponse.<Major>builder()
+                .items(pg.getContent())
+                .totalCount(pg.getTotalElements())
+                .page(p)
+                .limit(lim)
+                .hasNext(pg.hasNext())
+                .build();
     }
 
     @Override

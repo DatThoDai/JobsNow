@@ -35,11 +35,15 @@ import com.JobsNow.backend.request.CreateCompanyRequest;
 import com.JobsNow.backend.request.SocialLinkItem;
 import com.JobsNow.backend.request.UpdateCompanyRequest;
 import com.JobsNow.backend.response.CompanyDashboardMetricsResponse;
+import com.JobsNow.backend.response.PagedResponse;
 import com.JobsNow.backend.service.AwsS3Service;
 import com.JobsNow.backend.service.CompanyService;
+import com.JobsNow.backend.util.PagingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -75,25 +79,42 @@ public class CompanyServiceImpl implements CompanyService {
 
     @Value("${aws.s3.endpointUrl}")
     private String s3PublicBaseUrl;
+
+    private CompanyDTO toVerifiedCompanyDtoWithQuota(Company c) {
+        CompanyDTO dto = CompanyMapper.toCompanyDTO(c);
+        companyFeatureQuotaRepository.findByCompany_CompanyId(c.getCompanyId())
+                .ifPresent(q -> {
+                    boolean isExpired = q.getExpiresAt() != null && q.getExpiresAt().isBefore(LocalDateTime.now());
+                    if (isExpired) {
+                        dto.setPriorityLevel(0);
+                    } else {
+                        dto.setPriorityLevel(q.getPriorityLevel() != null ? q.getPriorityLevel() : 0);
+                    }
+                });
+        return dto;
+    }
+
     @Override
     public List<CompanyDTO> getAllCompanies() {
         List<Company> companies = companyRepository.findAll();
         return companies.stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsVerified()))
-                .map(c -> {
-                    CompanyDTO dto = CompanyMapper.toCompanyDTO(c);
-                    companyFeatureQuotaRepository.findByCompany_CompanyId(c.getCompanyId())
-                            .ifPresent(q -> {
-                                boolean isExpired = q.getExpiresAt() != null && q.getExpiresAt().isBefore(java.time.LocalDateTime.now());
-                                if (isExpired) {
-                                    dto.setPriorityLevel(0);
-                                } else {
-                                    dto.setPriorityLevel(q.getPriorityLevel() != null ? q.getPriorityLevel() : 0);
-                                }
-                            });
-                    return dto;
-                })
+                .map(this::toVerifiedCompanyDtoWithQuota)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public PagedResponse<CompanyDTO> getVerifiedCompaniesPage(int page, int limit) {
+        int p = PagingUtil.safePage(page);
+        int lim = PagingUtil.safeLimit(limit, 100);
+        Page<Company> pg = companyRepository.findByIsVerifiedTrueOrderByCompanyNameAsc(PageRequest.of(p - 1, lim));
+        return PagedResponse.<CompanyDTO>builder()
+                .items(pg.getContent().stream().map(this::toVerifiedCompanyDtoWithQuota).toList())
+                .totalCount(pg.getTotalElements())
+                .page(p)
+                .limit(lim)
+                .hasNext(pg.hasNext())
+                .build();
     }
 
     @Override

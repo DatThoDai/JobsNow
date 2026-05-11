@@ -9,7 +9,12 @@ import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.AdminDashboardMetricsService;
 import com.JobsNow.backend.service.AdminUserService;
 import com.JobsNow.backend.service.ApplicationService;
+import com.JobsNow.backend.service.CompanyService;
+import com.JobsNow.backend.service.IndustryService;
+import com.JobsNow.backend.service.JobCategoryService;
 import com.JobsNow.backend.service.JobService;
+import com.JobsNow.backend.service.MajorService;
+import com.JobsNow.backend.service.SkillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,10 +37,17 @@ public class AdminController {
     private final JobService jobService;
     private final AdminUserService adminUserService;
     private final AdminDashboardMetricsService adminDashboardMetricsService;
+    private final CompanyService companyService;
+    private final IndustryService industryService;
+    private final JobCategoryService jobCategoryService;
+    private final SkillService skillService;
+    private final MajorService majorService;
 
     @GetMapping("/users")
-    public ResponseEntity<?> listUsers() {
-        return ResponseFactory.success(adminUserService.listUsers());
+    public ResponseEntity<?> listUsers(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseFactory.success(adminUserService.listUsers(page, limit));
     }
 
     @PutMapping("/users/{userId}")
@@ -46,8 +58,11 @@ public class AdminController {
     }
 
     @GetMapping("/jobs")
-    public ResponseEntity<?> getJobsForAdmin(@RequestParam(required = false) String status) {
-        return ResponseFactory.success(jobService.getAllJobsForAdmin(status));
+    public ResponseEntity<?> getJobsForAdmin(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseFactory.success(jobService.getJobsForAdmin(status, page, limit));
     }
 
     @PutMapping("/jobs/{jobId}/unpublish")
@@ -60,6 +75,41 @@ public class AdminController {
     public ResponseEntity<?> deleteJobByAdmin(@PathVariable Integer jobId) {
         jobService.deleteJob(jobId);
         return ResponseFactory.successMessage("Job deleted successfully");
+    }
+
+    @GetMapping("/companies")
+    public ResponseEntity<?> listCompaniesForAdmin(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseFactory.success(companyService.getVerifiedCompaniesPage(page, limit));
+    }
+
+    @GetMapping("/industries")
+    public ResponseEntity<?> listIndustriesForAdmin(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseFactory.success(industryService.getIndustriesPage(page, limit));
+    }
+
+    @GetMapping("/job-categories")
+    public ResponseEntity<?> listJobCategoriesForAdmin(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseFactory.success(jobCategoryService.getJobCategoriesPage(page, limit));
+    }
+
+    @GetMapping("/skills")
+    public ResponseEntity<?> listSkillsForAdmin(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseFactory.success(skillService.getSkillsPage(page, limit));
+    }
+
+    @GetMapping("/majors")
+    public ResponseEntity<?> listMajorsForAdmin(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseFactory.success(majorService.getMajorsPage(page, limit));
     }
 
     @GetMapping("/stats")
