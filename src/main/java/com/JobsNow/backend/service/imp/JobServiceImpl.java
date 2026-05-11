@@ -27,8 +27,10 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +39,8 @@ import java.time.chrono.ChronoLocalDate;
 import java.io.IOException;
 import com.JobsNow.backend.service.NotificationService;
 import com.JobsNow.backend.request.CreateNotificationRequest;
+import com.JobsNow.backend.response.PagedResponse;
+import com.JobsNow.backend.util.PagingUtil;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.List;
@@ -535,22 +539,32 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<JobDTO> getAllJobsForAdmin(String status) {
-        List<Job> all = jobRepository.findAllByOrderByPostedAtDesc();
+    public PagedResponse<JobDTO> getJobsForAdmin(String status, int page, int limit) {
+        int p = PagingUtil.safePage(page);
+        int lim = PagingUtil.safeLimit(limit, 100);
+        Pageable pr = PageRequest.of(p - 1, lim);
+        Page<Job> pg;
         if (status != null && !status.isBlank()) {
             String s = status.trim().toLowerCase();
             if ("pending".equals(s)) {
-                all = all.stream().filter(job -> Boolean.TRUE.equals(job.getIsPending())).toList();
+                pg = jobRepository.findByIsPendingTrueOrderByPostedAtDesc(pr);
             } else if ("approved".equals(s)) {
-                all = all.stream().filter(job -> Boolean.TRUE.equals(job.getIsApproved())).toList();
+                pg = jobRepository.findByIsApprovedTrueOrderByPostedAtDesc(pr);
             } else if ("rejected".equals(s)) {
-                all = all.stream()
-                        .filter(job -> !Boolean.TRUE.equals(job.getIsApproved())
-                                && !Boolean.TRUE.equals(job.getIsPending()))
-                        .toList();
+                pg = jobRepository.findByIsApprovedFalseAndIsPendingFalseOrderByPostedAtDesc(pr);
+            } else {
+                pg = jobRepository.findAllByOrderByPostedAtDesc(pr);
             }
+        } else {
+            pg = jobRepository.findAllByOrderByPostedAtDesc(pr);
         }
-        return all.stream().map(JobMapper::toJobDTO).map(this::enrichBoostStatus).toList();
+        return PagedResponse.<JobDTO>builder()
+                .items(pg.getContent().stream().map(JobMapper::toJobDTO).map(this::enrichBoostStatus).toList())
+                .totalCount(pg.getTotalElements())
+                .page(p)
+                .limit(lim)
+                .hasNext(pg.hasNext())
+                .build();
     }
 
     @Scheduled(cron = "0 0 0 * * ?")

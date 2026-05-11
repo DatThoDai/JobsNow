@@ -8,8 +8,12 @@ import com.JobsNow.backend.repositories.IndustryRepository;
 import com.JobsNow.backend.repositories.JobCategoryRepository;
 import com.JobsNow.backend.request.CreateIndustryRequest;
 import com.JobsNow.backend.request.UpdateIndustryRequest;
+import com.JobsNow.backend.response.PagedResponse;
 import com.JobsNow.backend.service.IndustryService;
+import com.JobsNow.backend.util.PagingUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -27,6 +31,22 @@ public class IndustryServiceImpl implements IndustryService {
         return industryRepository.findAll().stream()
                 .map(i -> new IndustryDTO(i.getIndustryId(), i.getName()))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public PagedResponse<IndustryDTO> getIndustriesPage(int page, int limit) {
+        int p = PagingUtil.safePage(page);
+        int lim = PagingUtil.safeLimit(limit, 100);
+        Page<Industry> pg = industryRepository.findAllByOrderByNameAsc(PageRequest.of(p - 1, lim));
+        return PagedResponse.<IndustryDTO>builder()
+                .items(pg.getContent().stream()
+                        .map(i -> new IndustryDTO(i.getIndustryId(), i.getName()))
+                        .toList())
+                .totalCount(pg.getTotalElements())
+                .page(p)
+                .limit(lim)
+                .hasNext(pg.hasNext())
+                .build();
     }
 
     @Override

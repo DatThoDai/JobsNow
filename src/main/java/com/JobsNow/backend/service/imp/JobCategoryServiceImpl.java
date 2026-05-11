@@ -10,8 +10,12 @@ import com.JobsNow.backend.repositories.IndustryRepository;
 import com.JobsNow.backend.repositories.JobCategoryRepository;
 import com.JobsNow.backend.request.CreateJobCategoryRequest;
 import com.JobsNow.backend.request.UpdateJobCategoryRequest;
+import com.JobsNow.backend.response.PagedResponse;
 import com.JobsNow.backend.service.JobCategoryService;
+import com.JobsNow.backend.util.PagingUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -28,6 +32,20 @@ public class JobCategoryServiceImpl implements JobCategoryService {
         return jobCategories.stream()
                 .map(JobCategoryMapper::toJobCategoryDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public PagedResponse<JobCategoryDTO> getJobCategoriesPage(int page, int limit) {
+        int p = PagingUtil.safePage(page);
+        int lim = PagingUtil.safeLimit(limit, 100);
+        Page<JobCategory> pg = jobCategoryRepository.findAllByOrderByNameAsc(PageRequest.of(p - 1, lim));
+        return PagedResponse.<JobCategoryDTO>builder()
+                .items(pg.getContent().stream().map(JobCategoryMapper::toJobCategoryDTO).toList())
+                .totalCount(pg.getTotalElements())
+                .page(p)
+                .limit(lim)
+                .hasNext(pg.hasNext())
+                .build();
     }
 
     @Override

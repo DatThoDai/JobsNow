@@ -52,10 +52,10 @@ class AdminDashboardMetricsServiceImplTest {
 
     @Test
     void shouldBuildMetricsForMonthPreset() {
-        when(userRepository.count()).thenReturn(100L);
-        when(companyRepository.count()).thenReturn(20L);
-        when(jobRepository.count()).thenReturn(55L);
-        when(subscriptionPlanRepository.countByIsActiveTrue()).thenReturn(7L);
+        when(userRepository.countByCreatedAtBetween(any(), any())).thenReturn(100L);
+        when(companyRepository.countCreatedInRange(any(), any())).thenReturn(20L);
+        when(jobRepository.countByPostedAtBetweenAndIsActiveTrueAndIsDeletedFalseAndIsApprovedTrue(any(), any())).thenReturn(55L);
+        when(paymentOrderRepository.countDistinctPlansByStatusAndCreatedAtBetween(any(), any(), any())).thenReturn(7L);
 
         when(paymentOrderRepository.countByStatusAndCreatedAtBetween(any(), any(), any())).thenReturn(4L);
         when(paymentOrderRepository.sumRevenueByStatusInRange(any(), any(), any())).thenReturn(1500000d);
