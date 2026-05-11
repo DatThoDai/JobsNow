@@ -2,8 +2,9 @@ package com.JobsNow.backend.repositories;
 
 import com.JobsNow.backend.entity.Job;
 import com.JobsNow.backend.entity.enums.JobType;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.repository.query.Param;
@@ -38,6 +39,14 @@ public interface JobRepository extends JpaRepository<Job, Integer> {
     List<Job> findByCategoryId(@Param("categoryId") Integer categoryId);
 
     List<Job> findAllByOrderByPostedAtDesc();
+
+    Page<Job> findAllByOrderByPostedAtDesc(Pageable pageable);
+
+    Page<Job> findByIsPendingTrueOrderByPostedAtDesc(Pageable pageable);
+
+    Page<Job> findByIsApprovedTrueOrderByPostedAtDesc(Pageable pageable);
+
+    Page<Job> findByIsApprovedFalseAndIsPendingFalseOrderByPostedAtDesc(Pageable pageable);
     List<Job> findByIsActiveTrueAndIsDeletedFalse();
     List<Job> findByIsActiveTrueAndIsDeletedFalseOrderByFinalScoreDescPostedAtDesc();
     @Query("SELECT DISTINCT j FROM Job j " +

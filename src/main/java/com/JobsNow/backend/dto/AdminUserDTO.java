@@ -14,4 +14,6 @@ public class AdminUserDTO {
     private String status;
     private Boolean isVerified;
     private String createdAt;
+    /** Avatar (job seeker) hoặc logo (company); null nếu không có. */
+    private String avatar;
 }

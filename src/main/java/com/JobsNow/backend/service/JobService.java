@@ -4,6 +4,7 @@ import com.JobsNow.backend.dto.JobDTO;
 import com.JobsNow.backend.request.CreateJobRequest;
 import com.JobsNow.backend.request.RejectJobRequest;
 import com.JobsNow.backend.request.UpdateJobRequest;
+import com.JobsNow.backend.response.PagedResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,7 +23,7 @@ public interface JobService {
     List<JobDTO> searchJobs(String keyword, String location, String jobType, List<Integer> categoryIds);
     void approveJob(Integer jobId);
     void rejectJob(RejectJobRequest request);
-    List<JobDTO> getAllJobsForAdmin(String status);
+    PagedResponse<JobDTO> getJobsForAdmin(String status, int page, int limit);
     List<JobDTO> getHotJobs(int limit);
     void pushJobsToAlgolia() throws IOException;
     void pushSingleJobToAlgolia(Integer jobId);
