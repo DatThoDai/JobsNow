@@ -9,18 +9,23 @@ import com.JobsNow.backend.repositories.*;
 import com.JobsNow.backend.request.SendFileMessageRequest;
 import com.JobsNow.backend.request.SendTextMessageRequest;
 import com.JobsNow.backend.response.AttachmentResponse;
+import com.JobsNow.backend.response.ChatMessagesPageResponse;
 import com.JobsNow.backend.response.ConversationResponse;
 import com.JobsNow.backend.response.MessageResponse;
 import com.JobsNow.backend.response.NotificationResponse;
 import com.JobsNow.backend.service.ConversationService;
+import com.JobsNow.backend.util.PagingUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 
 @Service
@@ -321,17 +326,41 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
+    public ChatMessagesPageResponse getMessagesPage(Integer conversationId, Integer beforeMessageId, int limit) {
+        int lim = PagingUtil.safeLimit(limit, 50);
+        Pageable pageable = PageRequest.of(0, lim + 1);
+        List<Message> fetched;
+        if (beforeMessageId == null) {
+            fetched = messageRepository.findByConversation_ConversationIdOrderByMessageIdDesc(
+                    conversationId, pageable);
+        } else {
+            fetched = messageRepository.findByConversation_ConversationIdAndMessageIdLessThanOrderByMessageIdDesc(
+                    conversationId, beforeMessageId, pageable);
+        }
+
+        boolean hasMore = fetched.size() > lim;
+        List<Message> page = hasMore ? fetched.subList(0, lim) : fetched;
+
+        List<MessageResponse> messages = new ArrayList<>(page.size());
+        for (int i = page.size() - 1; i >= 0; i--) {
+            messages.add(buildMessageResponse(page.get(i)));
+        }
+
+        Integer oldestMessageId = messages.isEmpty() ? null : messages.get(0).getMessageId();
+
+        return ChatMessagesPageResponse.builder()
+                .messages(messages)
+                .hasMore(hasMore)
+                .oldestMessageId(oldestMessageId)
+                .build();
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
     public void markMessagesAsRead(Integer conversationId, Integer userId) {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new NotFoundException("Conversation not found"));
-        List<Message> messages = messageRepository
-                .findByConversation_ConversationIdOrderBySentAtAsc(conversationId);
-        for (Message msg : messages) {
-            if (!msg.getIsRead() && !msg.getSender().getUserId().equals(userId)) {
-                msg.setIsRead(true);
-                messageRepository.save(msg);
-            }
-        }
+        messageRepository.markUnreadAsReadForUser(conversationId, userId);
         if (conversation.getCandidateUser().getUserId().equals(userId)) {
             conversation.setUnreadCountCandidate(0);
         } else {
