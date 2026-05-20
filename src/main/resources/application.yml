@@ -59,7 +59,7 @@ google:
 linkedin:
   client-id: ${LINKEDIN_CLIENT_ID:}
   client-secret: ${LINKEDIN_CLIENT_SECRET:}
-  redirect-uri: ${LINKEDIN_REDIRECT_URI:http://localhost:5173/callbacks}
+  redirect-uri: ${LINKEDIN_REDIRECT_URI:https://jobsnow.id.vn/callbacks}
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
