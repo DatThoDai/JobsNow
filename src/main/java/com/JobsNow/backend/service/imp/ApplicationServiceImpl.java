@@ -12,6 +12,7 @@ import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.mapper.ApplicationMapper;
 import com.JobsNow.backend.repositories.*;
 import com.JobsNow.backend.request.ApplicationRequest;
+import com.JobsNow.backend.request.SendCustomEmailRequest;
 import com.JobsNow.backend.request.UpdateApplicationStatusRequest;
 import com.JobsNow.backend.request.CreateNotificationRequest;
 import com.JobsNow.backend.response.ApplicationDetailResponse;
@@ -19,17 +20,35 @@ import com.JobsNow.backend.response.ApplicationOfJobResponse;
 import com.JobsNow.backend.response.NotificationResponse;
 import com.JobsNow.backend.service.ApplicationService;
 import com.JobsNow.backend.service.EmailService;
+import com.JobsNow.backend.service.AwsS3Service;
+import com.JobsNow.backend.service.CVParserService;
+import com.JobsNow.backend.service.CandidateQuotaService;
+import jakarta.mail.*;
+import jakarta.mail.Message;
+import jakarta.mail.internet.*;
+import jakarta.mail.search.*;
+
+import java.io.*;
+import java.nio.file.Files;
+import java.time.YearMonth;
+import java.util.Properties;
+import java.util.ArrayList;
+
+import org.springframework.beans.factory.annotation.Value;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.HtmlUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,6 +63,24 @@ public class ApplicationServiceImpl implements ApplicationService {
     private final NotificationServiceImpl notificationService;
     private final SimpMessagingTemplate messagingTemplate;
     private final EmailService emailService;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final AwsS3Service awsS3Service;
+    private final CVParserService cvParserService;
+    private final CandidateQuotaService candidateQuotaService;
+    private final CompanyRepository companyRepository;
+
+    @Value("${jobsnow.mail.imap.username:${spring.mail.username:}}")
+    private String imapUsername;
+
+    @Value("${jobsnow.mail.imap.password:${spring.mail.password:}}")
+    private String imapPassword;
+
+    @Value("${jobsnow.mail.imap.host:imap.gmail.com}")
+    private String imapHost;
+
+    @Value("${jobsnow.mail.imap.port:993}")
+    private String imapPort;
     @Override
     @Transactional
     public void applyForJob(ApplicationRequest request) {
@@ -165,7 +202,7 @@ public class ApplicationServiceImpl implements ApplicationService {
     }
 
     @Override
-    public void sendCustomEmail(Integer applicationId, com.JobsNow.backend.request.SendCustomEmailRequest request) {
+    public void sendCustomEmail(Integer applicationId, SendCustomEmailRequest request) {
         Application application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new NotFoundException("Application not found"));
 
@@ -230,7 +267,7 @@ public class ApplicationServiceImpl implements ApplicationService {
             dto.setCounts(counts);
         } else if ("month".equals(type) && month != null) {
             // Theo từng ngày trong tháng
-            java.time.YearMonth yearMonth = java.time.YearMonth.of(currentYear, month);
+            java.time.YearMonth yearMonth = YearMonth.of(currentYear, month);
             List<String> labels = new ArrayList<>();
             List<Long> counts = new ArrayList<>();
             for (int day = 1; day <= yearMonth.lengthOfMonth(); day++) {
@@ -322,4 +359,270 @@ public class ApplicationServiceImpl implements ApplicationService {
         applicationStatusHistoryRepository.save(history);
     }
 
+    @Override
+    @Transactional
+    public void applyViaEmail(String email, String fullName, Integer jobId, MultipartFile cvFile) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            Role role = roleRepository.findByRoleName("ROLE_JOBSEEKER")
+                    .orElseThrow(() -> new BadRequestException("Default jobseeker role not found"));
+            user = new User();
+            user.setEmail(email);
+            user.setFullName(fullName != null ? fullName : email.substring(0, email.indexOf('@')));
+            user.setRole(role);
+            user.setIsVerified(true);
+            user.setCreatedAt(LocalDateTime.now());
+            userRepository.save(user);
+
+            JobSeekerProfile profile = new JobSeekerProfile();
+            profile.setUser(user);
+            profile.setAvatarUrl("https://jobsnow-upload.s3.us-east-1.amazonaws.com/avatars/default-avatar_1771699390597.png");
+            jobSeekerProfileRepository.save(profile);
+
+            candidateQuotaService.ensureDefaultQuota(user.getUserId(), 0, 3);
+        }
+
+        final User finalUser = user;
+        JobSeekerProfile finalProfile = jobSeekerProfileRepository.findByUser_UserId(user.getUserId())
+                .orElseGet(() -> {
+                    JobSeekerProfile profile = new JobSeekerProfile();
+                    profile.setUser(finalUser);
+                    profile.setAvatarUrl("https://jobsnow-upload.s3.us-east-1.amazonaws.com/avatars/default-avatar_1771699390597.png");
+                    jobSeekerProfileRepository.save(profile);
+                    candidateQuotaService.ensureDefaultQuota(finalUser.getUserId(), 0, 3);
+                    return profile;
+                });
+
+        String extractedText = null;
+        String s3Url = null;
+
+        if (cvFile != null && !cvFile.isEmpty()) {
+            try {
+                String originalFileName = cvFile.getOriginalFilename();
+                if (originalFileName == null || originalFileName.isBlank()) {
+                    originalFileName = "cv_from_email_" + System.currentTimeMillis() + ".pdf";
+                }
+                String extension = originalFileName.substring(originalFileName.lastIndexOf("."));
+                String baseName = originalFileName.substring(0, originalFileName.lastIndexOf("."));
+                String s3Key = "resumes/" + baseName + "_" + System.currentTimeMillis() + extension;
+                s3Url = awsS3Service.uploadFileToS3(cvFile.getInputStream(), s3Key, cvFile.getContentType());
+                extractedText = cvParserService.extractText(cvFile);
+            } catch (Exception e) {
+                log.warn("Failed to process attached CV: {}", e.getMessage());
+            }
+        }
+
+        Resume resume = new Resume();
+        resume.setJobSeekerProfile(finalProfile);
+        resume.setResumeName("CV_" + System.currentTimeMillis());
+        resume.setResumeUrl(s3Url);
+        resume.setExtractedText(extractedText);
+        resume.setTemplateKey("cvhay-industry-safety");
+        resume.setUploadedAt(LocalDateTime.now());
+        resume.setIsDeleted(false);
+        resume.setIsPrimary(false);
+        resumeRepository.save(resume);
+
+        Job job = jobRepository.findById(jobId).orElse(null);
+        if (job != null && applicationRepository.existsByJob_JobIdAndJobSeekerProfile_ProfileId(jobId, finalProfile.getProfileId())) {
+            return;
+        }
+
+        ApplicationRequest appRequest = new ApplicationRequest();
+        appRequest.setJobId(jobId);
+        appRequest.setProfileId(finalProfile.getProfileId());
+        appRequest.setResumeId(resume.getResumeId());
+
+        applyForJob(appRequest);
+    }
+
+    @Override
+    @Transactional
+    public List<String> syncApplicationsFromEmail() {
+        String loggedInUserEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        User loggedInUser = userRepository.findByEmail(loggedInUserEmail).orElse(null);
+        if (loggedInUser == null) {
+            throw new BadRequestException("Logged in user not found");
+        }
+        Company loggedInCompany = companyRepository.findByUser_UserId(loggedInUser.getUserId()).orElse(null);
+        if (loggedInCompany == null) {
+            throw new BadRequestException("Company not found for logged in user");
+        }
+        final Integer loggedInCompanyId = loggedInCompany.getCompanyId();
+
+        List<String> syncedCandidates = new ArrayList<>();
+        Properties props = new Properties();
+        props.put("mail.store.protocol", "imaps");
+        props.put("mail.imaps.host", imapHost);
+        props.put("mail.imaps.port", imapPort);
+        props.put("mail.imaps.ssl.enable", "true");
+
+        try {
+            Session session = Session.getInstance(props, null);
+            Store store = session.getStore("imaps");
+            store.connect(imapHost, imapUsername, imapPassword);
+
+            Folder inbox = store.getFolder("INBOX");
+            inbox.open(Folder.READ_WRITE);
+
+            SearchTerm term = new AndTerm(
+                new FlagTerm(new Flags(Flags.Flag.SEEN), false),
+                new SubjectTerm("Apply:")
+            );
+
+            Message[] messages = inbox.search(term);
+            for (Message message : messages) {
+                try {
+                    String subject = message.getSubject();
+                    if (subject == null) continue;
+
+                    java.util.regex.Matcher matcher = Pattern.compile("\\[JobId:\\s*(\\d+)\\]", Pattern.CASE_INSENSITIVE).matcher(subject);
+                    Integer jobId = 1;
+                    if (matcher.find()) {
+                        jobId = Integer.parseInt(matcher.group(1));
+                    }
+
+                    Job job = jobRepository.findById(jobId).orElse(null);
+                    if (job == null || job.getCompany() == null || !job.getCompany().getCompanyId().equals(loggedInCompanyId)) {
+                        continue;
+                    }
+
+                    jakarta.mail.Address[] froms = message.getFrom();
+                    if (froms == null || froms.length == 0) continue;
+                    jakarta.mail.internet.InternetAddress fromAddress = (InternetAddress) froms[0];
+                    String email = fromAddress.getAddress();
+                    String fullName = fromAddress.getPersonal();
+
+                    try {
+                        String bodyText = getTextFromMessage(message);
+                        if (bodyText != null && !bodyText.isBlank()) {
+                            java.util.regex.Matcher bodyMatcher = java.util.regex.Pattern.compile("tôi là\\s+([^(]+)\\(([^)]+)\\)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(bodyText);
+                            if (bodyMatcher.find()) {
+                                fullName = bodyMatcher.group(1).trim();
+                                email = bodyMatcher.group(2).trim();
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to extract candidate info from body: {}", e.getMessage());
+                    }
+
+                    if (fullName == null || fullName.isBlank()) {
+                        fullName = email.substring(0, email.indexOf('@'));
+                    }
+
+                    MultipartFile attachmentFile = null;
+                    if (message.getContent() instanceof jakarta.mail.Multipart) {
+                        jakarta.mail.Multipart multipart = (Multipart) message.getContent();
+                        for (int i = 0; i < multipart.getCount(); i++) {
+                            BodyPart bodyPart = multipart.getBodyPart(i);
+                            if (Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) ||
+                                (bodyPart.getFileName() != null && !bodyPart.getFileName().isBlank())) {
+                                String fileName = bodyPart.getFileName();
+                                String contentType = bodyPart.getContentType();
+                                InputStream is = bodyPart.getInputStream();
+                                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                byte[] buffer = new byte[4096];
+                                int bytesRead;
+                                while ((bytesRead = is.read(buffer)) != -1) {
+                                    baos.write(buffer, 0, bytesRead);
+                                }
+                                attachmentFile = new InMemoryMultipartFile("cvFile", fileName, contentType, baos.toByteArray());
+                                break;
+                            }
+                        }
+                    }
+
+                    if (attachmentFile != null) {
+                        applyViaEmail(email, fullName, jobId, attachmentFile);
+                        syncedCandidates.add(fullName);
+                        message.setFlag(jakarta.mail.Flags.Flag.SEEN, true);
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to process sync for message: {}", message.getSubject(), e);
+                }
+            }
+
+            inbox.close(true);
+            store.close();
+        } catch (Exception e) {
+            throw new BadRequestException("Failed to sync applications from email: " + e.getMessage());
+        }
+        return syncedCandidates;
+    }
+
+    private String getTextFromMessage(Message message) throws Exception {
+        if (message.isMimeType("text/*")) {
+            return message.getContent().toString();
+        }
+        if (message.isMimeType("multipart/*")) {
+            jakarta.mail.Multipart multipart = (jakarta.mail.Multipart) message.getContent();
+            return getTextFromMultipart(multipart);
+        }
+        return "";
+    }
+
+    private String getTextFromMultipart(Multipart multipart) throws Exception {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < multipart.getCount(); i++) {
+            BodyPart bodyPart = multipart.getBodyPart(i);
+            if (bodyPart.isMimeType("text/*")) {
+                result.append(bodyPart.getContent().toString());
+            } else if (bodyPart.getContent() instanceof Multipart) {
+                result.append(getTextFromMultipart((Multipart) bodyPart.getContent()));
+            }
+        }
+        return result.toString();
+    }
+
+    private static class InMemoryMultipartFile implements MultipartFile {
+        private final String name;
+        private final String originalFilename;
+        private final String contentType;
+        private final byte[] content;
+
+        public InMemoryMultipartFile(String name, String originalFilename, String contentType, byte[] content) {
+            this.name = name;
+            this.originalFilename = originalFilename;
+            this.contentType = contentType;
+            this.content = content;
+        }
+
+        @Override public String getName() { return name; }
+        @Override public String getOriginalFilename() { return originalFilename; }
+        @Override public String getContentType() { return contentType; }
+        @Override public boolean isEmpty() { return content == null || content.length == 0; }
+        @Override public long getSize() { return content.length; }
+        @Override public byte[] getBytes() { return content; }
+        @Override public InputStream getInputStream() { return new ByteArrayInputStream(content); }
+        @Override public void transferTo(File dest) throws IOException, IllegalStateException {
+            Files.write(dest.toPath(), content);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void sendApplyEmail(Integer jobId, String email, String fullName, String subject, String body, MultipartFile cvFile) {
+        try {
+            String finalSubject = (subject != null && !subject.isBlank()) ? subject : "Apply: " + fullName + " [JobId: " + jobId + "]";
+            String finalBody = (body != null && !body.isBlank()) ? body : "Chào nhà tuyển dụng, tôi là " + fullName + " (" + email + "), tôi muốn ứng tuyển vào công việc của quý công ty.";
+            if (!finalBody.contains("<p>") && !finalBody.contains("<br/>") && !finalBody.contains("<div>")) {
+                finalBody = "<p>" + finalBody.replace("\n", "<br/>") + "</p>";
+            }
+            String fileName = cvFile.getOriginalFilename();
+            if (fileName == null || fileName.isBlank()) {
+                fileName = "CV_" + fullName.replaceAll("\\s+", "_") + ".pdf";
+            }
+            ByteArrayResource resource = new ByteArrayResource(cvFile.getBytes());
+            emailService.sendEmailWithAttachment(
+                imapUsername,
+                finalSubject,
+                finalBody,
+                fileName,
+                resource,
+                cvFile.getContentType()
+            );
+        } catch (Exception e) {
+            throw new BadRequestException("Failed to send apply email: " + e.getMessage());
+        }
+    }
 }
