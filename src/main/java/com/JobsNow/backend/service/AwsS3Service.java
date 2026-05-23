@@ -42,7 +42,8 @@ public class AwsS3Service {
 
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, inputStream.available()));
 
-            return endpointURL + s3Key;
+            String baseUrl = endpointURL.endsWith("/") ? endpointURL : endpointURL + "/";
+            return baseUrl + s3Key;
         } catch (Exception e) {
             log.error("AWS S3 upload error - bucket: {}, key: {}, error: {}", bucketName, s3Key, e.getMessage(), e);
             throw new RuntimeException("Upload file failed", e);
