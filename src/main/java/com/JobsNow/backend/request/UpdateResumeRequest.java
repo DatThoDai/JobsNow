@@ -9,4 +9,5 @@ public class UpdateResumeRequest {
     private String resumeName;
     private String summary;
     private String templateKey;
+    private String extractedText;
 }

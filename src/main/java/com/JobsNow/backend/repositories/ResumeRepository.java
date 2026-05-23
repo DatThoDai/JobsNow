@@ -1,8 +1,9 @@
 package com.JobsNow.backend.repositories;
 
-import com.JobsNow.backend.dto.ResumeDTO;
 import com.JobsNow.backend.entity.Resume;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -10,7 +11,15 @@ import java.util.Optional;
 
 @Repository
 public interface ResumeRepository extends JpaRepository<Resume, Integer> {
-    boolean existsByResumeNameAndJobSeekerProfile_ProfileId(String resumeName, Integer profileId);
+    @Query("""
+            SELECT COUNT(r) > 0 FROM Resume r
+            WHERE r.resumeName = :resumeName
+              AND r.jobSeekerProfile.profileId = :profileId
+              AND (r.isDeleted IS NULL OR r.isDeleted = false)
+            """)
+    boolean existsByResumeNameAndJobSeekerProfile_ProfileId(
+            @Param("resumeName") String resumeName,
+            @Param("profileId") Integer profileId);
     List<Resume> findByJobSeekerProfile_ProfileIdAndIsDeletedFalse(Integer profileId);
     Optional<Resume> findFirstByJobSeekerProfile_ProfileIdAndIsDeletedFalseAndIsPrimaryTrue(Integer profileId);
 }

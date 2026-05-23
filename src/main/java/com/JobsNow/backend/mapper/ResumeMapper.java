@@ -15,6 +15,22 @@ public class ResumeMapper {
         resumeDTO.setTemplateKey(resume.getTemplateKey());
         resumeDTO.setUploadedAt(resume.getUploadedAt());
         resumeDTO.setIsPrimary(resume.getIsPrimary());
+        resumeDTO.setHasParsedCv(isParsedCvJson(resume.getExtractedText()));
+        if (resumeDTO.getHasParsedCv()) {
+            resumeDTO.setExtractedText(resume.getExtractedText());
+        }
         return resumeDTO;
+    }
+
+    private static boolean isParsedCvJson(String extractedText) {
+        if (extractedText == null) {
+            return false;
+        }
+        String trimmed = extractedText.trim();
+        return trimmed.startsWith("{")
+                && (trimmed.contains("\"work_experiences\"")
+                || trimmed.contains("\"workExperiences\"")
+                || trimmed.contains("\"educations\"")
+                || trimmed.contains("\"skills\""));
     }
 }
