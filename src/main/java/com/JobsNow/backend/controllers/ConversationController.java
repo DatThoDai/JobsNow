@@ -48,7 +48,14 @@ public class ConversationController {
     }
 
     @GetMapping("/messages/{conversationId}")
-    public ResponseEntity<?> getMessages(@PathVariable Integer conversationId) {
+    public ResponseEntity<?> getMessages(
+            @PathVariable Integer conversationId,
+            @RequestParam(required = false) Integer beforeMessageId,
+            @RequestParam(defaultValue = "0") int limit) {
+        if (beforeMessageId != null || limit > 0) {
+            return ResponseFactory.success(
+                    conversationService.getMessagesPage(conversationId, beforeMessageId, limit));
+        }
         return ResponseFactory.success(conversationService.getMessagesByConversationId(conversationId));
     }
 

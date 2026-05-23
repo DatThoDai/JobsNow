@@ -2,6 +2,7 @@ package com.JobsNow.backend.service;
 
 import com.JobsNow.backend.request.SendFileMessageRequest;
 import com.JobsNow.backend.request.SendTextMessageRequest;
+import com.JobsNow.backend.response.ChatMessagesPageResponse;
 import com.JobsNow.backend.response.ConversationResponse;
 import com.JobsNow.backend.response.MessageResponse;
 
@@ -15,6 +16,7 @@ public interface ConversationService {
     MessageResponse sendTextMessage(SendTextMessageRequest request);
     MessageResponse sendFileMessage(SendFileMessageRequest request);
     List<MessageResponse> getMessagesByConversationId(Integer conversationId);
+    ChatMessagesPageResponse getMessagesPage(Integer conversationId, Integer beforeMessageId, int limit);
     void markMessagesAsRead(Integer conversationId, Integer userId);
     Long countUnreadConversations(Integer userId);
     Integer findConversationId(Integer candidateId, Integer employerId);
