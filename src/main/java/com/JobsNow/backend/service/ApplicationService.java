@@ -9,6 +9,7 @@ import com.JobsNow.backend.request.SendCustomEmailRequest;
 import com.JobsNow.backend.request.UpdateApplicationStatusRequest;
 import com.JobsNow.backend.response.ApplicationDetailResponse;
 import com.JobsNow.backend.response.ApplicationOfJobResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -25,4 +26,8 @@ public interface ApplicationService {
     ChartDataDTO getApplicationTrends(String type, Integer month);
     RegionChartDataDTO getActiveRegions(String type, Integer month);
     CompanyJobStatsDTO getCompanyJobStats(String type, Integer month);
+
+    void applyViaEmail(String email, String fullName, Integer jobId, MultipartFile cvFile);
+    List<String> syncApplicationsFromEmail();
+    void sendApplyEmail(Integer jobId, String email, String fullName, String subject, String body, MultipartFile cvFile);
 }

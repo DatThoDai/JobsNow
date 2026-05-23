@@ -6,6 +6,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamSource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -76,6 +77,72 @@ public class EmailService {
                 helper.setSubject(subject);
                 helper.setText(htmlBody, true);
                 mailSender.send(message);
+        }
+
+        public void sendEmailWithAttachment(String to, String subject, String htmlBody, String attachmentName, InputStreamSource attachmentSource, String contentType)
+                        throws MessagingException, UnsupportedEncodingException {
+                if (useBrevoApi()) {
+                        sendViaBrevoApiWithAttachment(to, subject, htmlBody, attachmentName, attachmentSource, contentType);
+                        return;
+                }
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true);
+                helper.setFrom(resolveFromEmail(), "JobsNow Candidate");
+                helper.setTo(to);
+                helper.setSubject(subject);
+                helper.setText(htmlBody, true);
+                helper.addAttachment(attachmentName, attachmentSource, contentType);
+                mailSender.send(message);
+        }
+
+        private void sendViaBrevoApiWithAttachment(String to, String subject, String htmlBody, String attachmentName, InputStreamSource attachmentSource, String contentType) throws MessagingException {
+                if (brevoApiKey == null || brevoApiKey.isBlank()) {
+                        throw new MessagingException("BREVO_API_KEY is required when MAIL_PROVIDER=brevo-api");
+                }
+                String base64Content = "";
+                try (java.io.InputStream is = attachmentSource.getInputStream()) {
+                        byte[] bytes = is.readAllBytes();
+                        base64Content = java.util.Base64.getEncoder().encodeToString(bytes);
+                } catch (IOException e) {
+                        throw new MessagingException("Failed to read attachment for Brevo", e);
+                }
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("sender", Map.of(
+                                "name", brevoSenderName,
+                                "email", resolveFromEmail()
+                ));
+                payload.put("to", List.of(Map.of("email", to)));
+                payload.put("subject", subject);
+                payload.put("htmlContent", htmlBody);
+                payload.put("attachment", List.of(Map.of(
+                                "name", attachmentName,
+                                "content", base64Content
+                )));
+                String jsonPayload;
+                try {
+                        jsonPayload = objectMapper.writeValueAsString(payload);
+                } catch (JsonProcessingException e) {
+                        throw new MessagingException("Failed to serialize Brevo email payload", e);
+                }
+                HttpRequest request = HttpRequest.newBuilder()
+                                .uri(URI.create(brevoApiUrl))
+                                .timeout(Duration.ofSeconds(20))
+                                .header("accept", "application/json")
+                                .header("api-key", brevoApiKey)
+                                .header("content-type", "application/json")
+                                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                                .build();
+                try {
+                        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                                throw new MessagingException("Brevo API send failed: status=" + response.statusCode() + ", body=" + response.body());
+                        }
+                } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new MessagingException("Brevo API send interrupted", e);
+                } catch (IOException e) {
+                        throw new MessagingException("Brevo API connection failed", e);
+                }
         }
 
         private void sendViaBrevoApi(String to, String subject, String htmlBody) throws MessagingException {
