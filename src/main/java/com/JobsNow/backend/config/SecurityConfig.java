@@ -45,6 +45,7 @@ public class SecurityConfig {
                     // PUBLIC
                     request.requestMatchers("/auth/**").permitAll();
                     request.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll();
+                    request.requestMatchers("/application/apply-via-email", "/application/send-apply-email").permitAll();
 
                     request.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                     request.requestMatchers(HttpMethod.GET, "/company/*/reviews").permitAll();
@@ -91,7 +92,7 @@ public class SecurityConfig {
                     request.requestMatchers("/job/create").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/job/{jobId}").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.DELETE, "/job/{jobId}").hasRole("COMPANY");
-                    request.requestMatchers("/application/job/**", "/application/company/**").hasRole("COMPANY");
+                    request.requestMatchers("/application/job/**", "/application/company/**", "/application/sync-via-email").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.PUT, "/application/{applicationId}/status").hasRole("COMPANY");
                     request.requestMatchers(HttpMethod.POST, "/company/{companyId}/logo").hasAnyRole("COMPANY", "ADMIN", "JOBSEEKER");
                     request.requestMatchers(HttpMethod.DELETE, "/company/{companyId}/logo").hasAnyRole("COMPANY", "ADMIN", "JOBSEEKER");
