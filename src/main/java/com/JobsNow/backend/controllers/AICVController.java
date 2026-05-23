@@ -7,15 +7,19 @@ import com.JobsNow.backend.repositories.UserRepository;
 import com.JobsNow.backend.request.GenerateCVRequest;
 import com.JobsNow.backend.request.ImproveCVRequest;
 import com.JobsNow.backend.request.JobMatchRequest;
+import com.JobsNow.backend.request.SuggestJobDraftRequest;
 import com.JobsNow.backend.mapper.JobMatchScoreMapper;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.response.ResponseFactory;
 import com.JobsNow.backend.service.AICVService;
+import com.JobsNow.backend.service.AIJobDraftService;
 import com.JobsNow.backend.service.CandidateQuotaService;
 import com.JobsNow.backend.service.CompanyQuotaService;
 import com.JobsNow.backend.service.JobMatchService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,6 +31,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AICVController {
     private final AICVService aiCVService;
+    private final AIJobDraftService aiJobDraftService;
     private final JobMatchService jobMatchService;
     private final JobMatchScoreRepository jobMatchScoreRepository;
     private final CompanyQuotaService companyQuotaService;
@@ -73,6 +78,17 @@ public class AICVController {
             candidateQuotaService.consumeAiCvBuilderForCandidateUser(userId);
         }
         return ResponseFactory.success(aiCVService.generateCV(request));
+    }
+
+    @PostMapping("/suggest-job-draft")
+    public ResponseEntity<?> suggestJobDraft(
+            @Valid @RequestBody SuggestJobDraftRequest request,
+            Authentication authentication) {
+        if (!isCompany(authentication)) {
+            return ResponseFactory.error(403, "Forbidden", HttpStatus.FORBIDDEN);
+        }
+        consumeAiScanIfCompany(authentication);
+        return ResponseFactory.success(aiJobDraftService.suggest(request));
     }
 
     @PostMapping("/job-match")
