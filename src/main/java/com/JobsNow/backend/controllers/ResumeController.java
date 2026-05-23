@@ -22,8 +22,7 @@ public class ResumeController {
 
     @PostMapping("/create/{profileId}")
     public ResponseEntity<?> createResume(@PathVariable Integer profileId, @ModelAttribute CreateResumeRequest request) {
-        resumeService.createResume(profileId, request);
-        return ResponseFactory.successMessage("Resume created successfully");
+        return ResponseFactory.success(resumeService.createResume(profileId, request));
     }
 
     @DeleteMapping("/delete/{resumeId}")

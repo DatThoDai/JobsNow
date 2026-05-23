@@ -15,4 +15,6 @@ public class ResumeDTO {
     private String templateKey;
     private LocalDateTime uploadedAt;
     private Boolean isPrimary;
+    private Boolean hasParsedCv;
+    private String extractedText;
 }
