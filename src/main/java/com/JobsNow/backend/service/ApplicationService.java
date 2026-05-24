@@ -27,7 +27,7 @@ public interface ApplicationService {
     RegionChartDataDTO getActiveRegions(String type, Integer month);
     CompanyJobStatsDTO getCompanyJobStats(String type, Integer month);
 
-    void applyViaEmail(String email, String fullName, Integer jobId, MultipartFile cvFile);
+    void applyViaEmail(String email, String fullName, Integer jobId, MultipartFile cvFile, java.util.List<MultipartFile> supportingFiles);
     List<String> syncApplicationsFromEmail();
-    void sendApplyEmail(Integer jobId, String email, String fullName, String subject, String body, MultipartFile cvFile);
+    void sendApplyEmail(Integer jobId, String email, String fullName, String subject, String body, MultipartFile cvFile, List<MultipartFile> supportingFiles);
 }

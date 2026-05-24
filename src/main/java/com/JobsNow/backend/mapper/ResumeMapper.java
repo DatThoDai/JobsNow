@@ -16,9 +16,7 @@ public class ResumeMapper {
         resumeDTO.setUploadedAt(resume.getUploadedAt());
         resumeDTO.setIsPrimary(resume.getIsPrimary());
         resumeDTO.setHasParsedCv(isParsedCvJson(resume.getExtractedText()));
-        if (resumeDTO.getHasParsedCv()) {
-            resumeDTO.setExtractedText(resume.getExtractedText());
-        }
+        resumeDTO.setExtractedText(resume.getExtractedText());
         return resumeDTO;
     }
 

@@ -47,4 +47,33 @@ public class OpenAIService {
             throw new RuntimeException("AI service unavailable: " + e.getMessage());
         }
     }
+
+    public String extractTextFromImage(String imageUrl) {
+        String url = baseUrl + "/chat/completions";
+        String promptText = "Hãy đọc hình ảnh chứng chỉ/bằng cấp này và trích xuất thông tin thật ngắn gọn (dưới 100 từ) gồm: Loại chứng chỉ/bằng cấp, Điểm số/Xếp loại, và các kỹ năng nổi bật liên quan để phục vụ đánh giá hồ sơ.";
+        List<Map<String, Object>> contentList = List.of(
+            Map.of("type", "text", "text", promptText),
+            Map.of("type", "image_url", "image_url", Map.of("url", imageUrl))
+        );
+        List<Map<String, Object>> messages = List.of(
+            Map.of("role", "user", "content", contentList)
+        );
+        String visionModel = model.contains("gpt-4o") ? model : "gpt-4o-mini";
+        Map<String, Object> requestBody = Map.of(
+            "model", visionModel,
+            "max_tokens", 300,
+            "temperature", 0.1,
+            "messages", messages
+        );
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, requestBody, String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            String content = root.path("choices").get(0).path("message").path("content").asText();
+            log.info("OpenAI Vision response received successfully.");
+            return content;
+        } catch (Exception e) {
+            log.error("OpenAI Vision API call failed for image: {}. Error: {}", imageUrl, e.getMessage(), e);
+            return "[Không thể phân tích văn bản từ hình ảnh chứng chỉ]";
+        }
+    }
 }
