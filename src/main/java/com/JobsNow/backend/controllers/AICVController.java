@@ -11,8 +11,10 @@ import com.JobsNow.backend.request.SuggestJobDraftRequest;
 import com.JobsNow.backend.mapper.JobMatchScoreMapper;
 import com.JobsNow.backend.exception.NotFoundException;
 import com.JobsNow.backend.response.ResponseFactory;
+import com.JobsNow.backend.repositories.JobSeekerProfileRepository;
 import com.JobsNow.backend.service.AICVService;
 import com.JobsNow.backend.service.AIJobDraftService;
+import com.JobsNow.backend.service.CVImportService;
 import com.JobsNow.backend.service.CandidateQuotaService;
 import com.JobsNow.backend.service.CompanyQuotaService;
 import com.JobsNow.backend.service.JobMatchService;
@@ -31,6 +33,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AICVController {
     private final AICVService aiCVService;
+    private final CVImportService cvImportService;
+    private final JobSeekerProfileRepository jobSeekerProfileRepository;
     private final AIJobDraftService aiJobDraftService;
     private final JobMatchService jobMatchService;
     private final JobMatchScoreRepository jobMatchScoreRepository;
@@ -48,6 +52,23 @@ public class AICVController {
             candidateQuotaService.consumeAiCvBuilderForCandidateUser(userId);
         }
         return ResponseFactory.success(aiCVService.improveCVFromRequest(request));
+    }
+
+    @PostMapping("/cv/parse")
+    public ResponseEntity<?> parseCV(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "profileId", required = false) Integer profileId,
+            Authentication authentication) {
+        if (isJobSeeker(authentication)) {
+            Integer userId = getUserId(authentication);
+            candidateQuotaService.assertAiCvBuilderEnabledForCandidateUser(userId);
+            candidateQuotaService.consumeAiCvBuilderForCandidateUser(userId);
+        }
+        var profile = profileId != null
+                ? jobSeekerProfileRepository.findById(profileId)
+                    .orElseThrow(() -> new NotFoundException("Profile not found"))
+                : null;
+        return ResponseFactory.success(cvImportService.parseFromFile(file, profile));
     }
 
     @PostMapping("/improve-cv/upload")

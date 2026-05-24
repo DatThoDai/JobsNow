@@ -23,6 +23,7 @@ import com.JobsNow.backend.service.EmailService;
 import com.JobsNow.backend.service.AwsS3Service;
 import com.JobsNow.backend.service.CVParserService;
 import com.JobsNow.backend.service.CandidateQuotaService;
+import com.JobsNow.backend.service.OpenAIService;
 import jakarta.mail.*;
 import jakarta.mail.Message;
 import jakarta.mail.internet.*;
@@ -46,7 +47,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.HtmlUtils;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -69,6 +69,7 @@ public class ApplicationServiceImpl implements ApplicationService {
     private final CVParserService cvParserService;
     private final CandidateQuotaService candidateQuotaService;
     private final CompanyRepository companyRepository;
+    private final OpenAIService openAIService;
 
     @Value("${jobsnow.mail.imap.username:${spring.mail.username:}}")
     private String imapUsername;
@@ -361,7 +362,7 @@ public class ApplicationServiceImpl implements ApplicationService {
 
     @Override
     @Transactional
-    public void applyViaEmail(String email, String fullName, Integer jobId, MultipartFile cvFile) {
+    public void applyViaEmail(String email, String fullName, Integer jobId, MultipartFile cvFile, List<MultipartFile> supportingFiles) {
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {
             Role role = roleRepository.findByRoleName("ROLE_JOBSEEKER")
@@ -410,6 +411,45 @@ public class ApplicationServiceImpl implements ApplicationService {
             } catch (Exception e) {
                 log.warn("Failed to process attached CV: {}", e.getMessage());
             }
+        }
+
+        StringBuilder supportingInfo = new StringBuilder();
+        if (supportingFiles != null && !supportingFiles.isEmpty()) {
+            supportingInfo.append("--- TÀI LIỆU/CHỨNG CHỈ ĐÍNH KÈM BỔ SUNG ---\n");
+            for (MultipartFile file : supportingFiles) {
+                if (file != null && !file.isEmpty()) {
+                    try {
+                        String origName = file.getOriginalFilename();
+                        if (origName == null || origName.isBlank()) {
+                            origName = "supporting_" + System.currentTimeMillis();
+                        }
+                        String ext = origName.contains(".") ? origName.substring(origName.lastIndexOf(".")) : "";
+                        String base = origName.contains(".") ? origName.substring(0, origName.lastIndexOf(".")) : origName;
+                        String s3Key = "certificates/" + base + "_" + System.currentTimeMillis() + ext;
+                        String fileUrl = awsS3Service.uploadFileToS3(file.getInputStream(), s3Key, file.getContentType());
+                        supportingInfo.append("- ").append(origName).append(": ").append(fileUrl).append("\n");
+                        String lowerExt = ext.toLowerCase();
+                        if (lowerExt.endsWith(".png") || lowerExt.endsWith(".jpg") || lowerExt.endsWith(".jpeg") || lowerExt.endsWith(".webp")) {
+                            try {
+                                String ocrResult = openAIService.extractTextFromImage(fileUrl);
+                                supportingInfo.append("  [Thông tin trích xuất bằng AI: ").append(ocrResult).append("]\n");
+                            } catch (Exception ocrEx) {
+                                log.warn("Failed to extract text from certificate image using OpenAI Vision: {}", ocrEx.getMessage());
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to upload supporting file {}: {}", file.getOriginalFilename(), e.getMessage());
+                    }
+                }
+            }
+            supportingInfo.append("\n");
+        }
+
+        if (extractedText == null) {
+            extractedText = "";
+        }
+        if (supportingInfo.length() > 0) {
+            extractedText = supportingInfo.toString() + extractedText;
         }
 
         Resume resume = new Resume();
@@ -511,29 +551,61 @@ public class ApplicationServiceImpl implements ApplicationService {
                     }
 
                     MultipartFile attachmentFile = null;
+                    List<MultipartFile> supportingFiles = new ArrayList<>();
                     if (message.getContent() instanceof jakarta.mail.Multipart) {
                         jakarta.mail.Multipart multipart = (Multipart) message.getContent();
+                        List<BodyPart> allAttachments = new ArrayList<>();
                         for (int i = 0; i < multipart.getCount(); i++) {
                             BodyPart bodyPart = multipart.getBodyPart(i);
                             if (Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) ||
                                 (bodyPart.getFileName() != null && !bodyPart.getFileName().isBlank())) {
-                                String fileName = bodyPart.getFileName();
-                                String contentType = bodyPart.getContentType();
-                                InputStream is = bodyPart.getInputStream();
+                                allAttachments.add(bodyPart);
+                            }
+                        }
+                        BodyPart cvBodyPart = null;
+                        for (BodyPart bp : allAttachments) {
+                            String fName = bp.getFileName();
+                            if (fName != null) {
+                                String lower = fName.toLowerCase();
+                                if (lower.endsWith(".pdf") || lower.endsWith(".docx") || lower.endsWith(".doc")) {
+                                    cvBodyPart = bp;
+                                    break;
+                                }
+                            }
+                        }
+                        if (cvBodyPart == null && !allAttachments.isEmpty()) {
+                            cvBodyPart = allAttachments.get(0);
+                        }
+                        if (cvBodyPart != null) {
+                            String fileName = cvBodyPart.getFileName();
+                            String contentType = cvBodyPart.getContentType();
+                            InputStream is = cvBodyPart.getInputStream();
+                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                            byte[] buffer = new byte[4096];
+                            int bytesRead;
+                            while ((bytesRead = is.read(buffer)) != -1) {
+                                baos.write(buffer, 0, bytesRead);
+                            }
+                            attachmentFile = new InMemoryMultipartFile("cvFile", fileName, contentType, baos.toByteArray());
+                        }
+                        for (BodyPart bp : allAttachments) {
+                            if (bp != cvBodyPart) {
+                                String fileName = bp.getFileName();
+                                String contentType = bp.getContentType();
+                                InputStream is = bp.getInputStream();
                                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                                 byte[] buffer = new byte[4096];
                                 int bytesRead;
                                 while ((bytesRead = is.read(buffer)) != -1) {
                                     baos.write(buffer, 0, bytesRead);
                                 }
-                                attachmentFile = new InMemoryMultipartFile("cvFile", fileName, contentType, baos.toByteArray());
-                                break;
+                                supportingFiles.add(new InMemoryMultipartFile("supportingFile", fileName, contentType, baos.toByteArray()));
                             }
                         }
                     }
 
                     if (attachmentFile != null) {
-                        applyViaEmail(email, fullName, jobId, attachmentFile);
+                        applyViaEmail(email, fullName, jobId, attachmentFile, supportingFiles);
                         syncedCandidates.add(fullName);
                         message.setFlag(jakarta.mail.Flags.Flag.SEEN, true);
                     }
@@ -601,7 +673,7 @@ public class ApplicationServiceImpl implements ApplicationService {
 
     @Override
     @Transactional
-    public void sendApplyEmail(Integer jobId, String email, String fullName, String subject, String body, MultipartFile cvFile) {
+    public void sendApplyEmail(Integer jobId, String email, String fullName, String subject, String body, MultipartFile cvFile, List<MultipartFile> supportingFiles) {
         try {
             String finalSubject = (subject != null && !subject.isBlank()) ? subject : "Apply: " + fullName + " [JobId: " + jobId + "]";
             String finalBody = (body != null && !body.isBlank()) ? body : "Chào nhà tuyển dụng, tôi là " + fullName + " (" + email + "), tôi muốn ứng tuyển vào công việc của quý công ty.";
@@ -613,13 +685,14 @@ public class ApplicationServiceImpl implements ApplicationService {
                 fileName = "CV_" + fullName.replaceAll("\\s+", "_") + ".pdf";
             }
             ByteArrayResource resource = new ByteArrayResource(cvFile.getBytes());
-            emailService.sendEmailWithAttachment(
+            emailService.sendEmailWithMultipleAttachments(
                 imapUsername,
                 finalSubject,
                 finalBody,
                 fileName,
                 resource,
-                cvFile.getContentType()
+                cvFile.getContentType(),
+                supportingFiles
             );
         } catch (Exception e) {
             throw new BadRequestException("Failed to send apply email: " + e.getMessage());

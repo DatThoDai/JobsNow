@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/application")
 @RequiredArgsConstructor
@@ -65,7 +67,7 @@ public class ApplicationController {
             @RequestParam(value = "fullName", required = false) String fullName,
             @RequestParam("jobId") Integer jobId,
             @RequestParam(value = "cvFile", required = false) MultipartFile cvFile) {
-        applicationService.applyViaEmail(email, fullName, jobId, cvFile);
+        applicationService.applyViaEmail(email, fullName, jobId, cvFile, null);
         return ResponseFactory.successMessage("Application submitted successfully via email");
     }
 
@@ -81,8 +83,9 @@ public class ApplicationController {
             @RequestParam("fullName") String fullName,
             @RequestParam(value = "subject", required = false) String subject,
             @RequestParam(value = "body", required = false) String body,
-            @RequestParam("cvFile") MultipartFile cvFile) {
-        applicationService.sendApplyEmail(jobId, email, fullName, subject, body, cvFile);
+            @RequestParam("cvFile") MultipartFile cvFile,
+            @RequestParam(value = "supportingFiles", required = false) List<MultipartFile> supportingFiles) {
+        applicationService.sendApplyEmail(jobId, email, fullName, subject, body, cvFile, supportingFiles);
         return ResponseFactory.successMessage("Application email sent successfully");
     }
 }

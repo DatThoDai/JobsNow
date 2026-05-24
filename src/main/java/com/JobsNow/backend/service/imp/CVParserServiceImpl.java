@@ -24,31 +24,46 @@ public class CVParserServiceImpl implements CVParserService {
         if (fileName == null) {
             throw new BadRequestException("File name is required");
         }
+        try {
+            return extractText(file.getBytes(), fileName);
+        } catch (Exception e) {
+            throw new BadRequestException("Cannot read file: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String extractText(byte[] fileBytes, String fileName) {
+        if (fileBytes == null || fileBytes.length == 0) {
+            throw new BadRequestException("File is empty");
+        }
+        if (fileName == null || !fileName.contains(".")) {
+            throw new BadRequestException("File name is required");
+        }
         String extension = fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
         return switch (extension) {
-            case "pdf" -> extractFromPDF(file);
-            case "docx" -> extractFromDOCX(file);
+            case "pdf" -> extractFromPDFBytes(fileBytes, fileName);
+            case "docx" -> extractFromDOCXBytes(fileBytes, fileName);
             default -> throw new BadRequestException(
                     "Unsupported file format: " + extension + ". Only PDF and DOCX are supported.");
         };
     }
-    private String extractFromPDF(MultipartFile file) {
-        try (PDDocument document = Loader.loadPDF(file.getBytes())) {
+    private String extractFromPDFBytes(byte[] fileBytes, String fileName) {
+        try (PDDocument document = Loader.loadPDF(fileBytes)) {
             PDFTextStripper stripper = new PDFTextStripper();
             String text = stripper.getText(document);
-            log.info("Extracted {} characters from PDF: {}", text.length(), file.getOriginalFilename());
+            log.info("Extracted {} characters from PDF: {}", text.length(), fileName);
             return normalizeText(text);
         } catch (Exception e) {
             log.error("Failed to parse PDF: {}", e.getMessage());
             throw new BadRequestException("Cannot read PDF file: " + e.getMessage());
         }
     }
-    private String extractFromDOCX(MultipartFile file) {
-        try (InputStream is = file.getInputStream();
+    private String extractFromDOCXBytes(byte[] fileBytes, String fileName) {
+        try (InputStream is = new java.io.ByteArrayInputStream(fileBytes);
              XWPFDocument document = new XWPFDocument(is);
              XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
             String text = extractor.getText();
-            log.info("Extracted {} characters from DOCX: {}", text.length(), file.getOriginalFilename());
+            log.info("Extracted {} characters from DOCX: {}", text.length(), fileName);
             return normalizeText(text);
         } catch (Exception e) {
             log.error("Failed to parse DOCX: {}", e.getMessage());

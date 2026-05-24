@@ -10,6 +10,7 @@ import org.springframework.core.io.InputStreamSource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.HtmlUtils;
 
 import java.io.IOException;
@@ -300,5 +301,90 @@ public class EmailService {
 
     public void sendCustomEmail(String to, String subject, String bodyHtml) throws MessagingException, UnsupportedEncodingException {
         sendEmail(to, subject, bodyHtml);
+    }
+
+    public void sendEmailWithMultipleAttachments(String to, String subject, String htmlBody, String cvName, InputStreamSource cvSource, String cvContentType, List<MultipartFile> supportingFiles)
+                    throws MessagingException, UnsupportedEncodingException {
+            if (useBrevoApi()) {
+                    sendViaBrevoApiWithMultipleAttachments(to, subject, htmlBody, cvName, cvSource, cvContentType, supportingFiles);
+                    return;
+            }
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            helper.setFrom(resolveFromEmail(), "JobsNow Candidate");
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
+            helper.addAttachment(cvName, cvSource, cvContentType);
+            if (supportingFiles != null) {
+                    for (MultipartFile file : supportingFiles) {
+                            if (file != null && !file.isEmpty()) {
+                                    helper.addAttachment(file.getOriginalFilename(), file, file.getContentType());
+                            }
+                    }
+            }
+            mailSender.send(message);
+    }
+
+    private void sendViaBrevoApiWithMultipleAttachments(String to, String subject, String htmlBody, String cvName, InputStreamSource cvSource, String cvContentType, List<MultipartFile> supportingFiles) throws MessagingException {
+            if (brevoApiKey == null || brevoApiKey.isBlank()) {
+                    throw new MessagingException("BREVO_API_KEY is required when MAIL_PROVIDER=brevo-api");
+            }
+            List<Map<String, Object>> attachmentsList = new java.util.ArrayList<>();
+            String cvBase64 = "";
+            try (java.io.InputStream is = cvSource.getInputStream()) {
+                    byte[] bytes = is.readAllBytes();
+                    cvBase64 = java.util.Base64.getEncoder().encodeToString(bytes);
+            } catch (IOException e) {
+                    throw new MessagingException("Failed to read CV for Brevo", e);
+            }
+            attachmentsList.add(Map.of("name", cvName, "content", cvBase64));
+            if (supportingFiles != null) {
+                    for (MultipartFile file : supportingFiles) {
+                            if (file != null && !file.isEmpty()) {
+                                    try (java.io.InputStream is = file.getInputStream()) {
+                                            byte[] bytes = is.readAllBytes();
+                                            String base64 = java.util.Base64.getEncoder().encodeToString(bytes);
+                                            attachmentsList.add(Map.of("name", file.getOriginalFilename(), "content", base64));
+                                    } catch (IOException e) {
+                                            throw new MessagingException("Failed to read supporting file for Brevo: " + file.getOriginalFilename(), e);
+                                    }
+                            }
+                    }
+            }
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("sender", Map.of(
+                            "name", brevoSenderName,
+                            "email", resolveFromEmail()
+            ));
+            payload.put("to", List.of(Map.of("email", to)));
+            payload.put("subject", subject);
+            payload.put("htmlContent", htmlBody);
+            payload.put("attachment", attachmentsList);
+            String jsonPayload;
+            try {
+                    jsonPayload = objectMapper.writeValueAsString(payload);
+            } catch (JsonProcessingException e) {
+                    throw new MessagingException("Failed to serialize Brevo email payload", e);
+            }
+            HttpRequest request = HttpRequest.newBuilder()
+                            .uri(URI.create(brevoApiUrl))
+                            .timeout(Duration.ofSeconds(20))
+                            .header("accept", "application/json")
+                            .header("api-key", brevoApiKey)
+                            .header("content-type", "application/json")
+                            .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                            .build();
+            try {
+                    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                            throw new MessagingException("Brevo API send failed: status=" + response.statusCode() + ", body=" + response.body());
+                    }
+            } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new MessagingException("Email sending interrupted", e);
+            } catch (IOException e) {
+                    throw new MessagingException("IO error during Brevo API send", e);
+            }
     }
 }
