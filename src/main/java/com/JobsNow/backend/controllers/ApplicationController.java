@@ -88,4 +88,10 @@ public class ApplicationController {
         applicationService.sendApplyEmail(jobId, email, fullName, subject, body, cvFile, supportingFiles);
         return ResponseFactory.successMessage("Application email sent successfully");
     }
+
+    @PostMapping("/{applicationId}/video-call-notify")
+    public ResponseEntity<?> notifyVideoCallStarted(@PathVariable Integer applicationId) {
+        applicationService.notifyVideoCallStarted(applicationId);
+        return ResponseFactory.successMessage("Video call notification sent");
+    }
 }

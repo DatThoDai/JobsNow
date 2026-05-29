@@ -698,4 +698,32 @@ public class ApplicationServiceImpl implements ApplicationService {
             throw new BadRequestException("Failed to send apply email: " + e.getMessage());
         }
     }
+
+    @Override
+    public void notifyVideoCallStarted(Integer applicationId) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new NotFoundException("Application not found"));
+
+        Integer jobSeekerId = application.getJobSeekerProfile().getUser().getUserId();
+        String companyName = application.getJob().getCompany().getCompanyName();
+        String jobTitle = application.getJob().getTitle();
+
+        CreateNotificationRequest notiRequest = CreateNotificationRequest.builder()
+                .applicationId(applicationId)
+                .userId(jobSeekerId)
+                .content("Nhà tuyển dụng " + companyName + " đã bắt đầu cuộc gọi phỏng vấn trực tuyến cho vị trí " + jobTitle + ". Vui lòng tham gia ngay!")
+                .type("VIDEO_CALL")
+                .build();
+        NotificationResponse notification = notificationService.createNotification(notiRequest);
+
+        // Override fields for richer WebSocket payload
+        notification.setJobTitle(jobTitle);
+        notification.setSenderName(companyName);
+
+        messagingTemplate.convertAndSend(
+                JobsNowConstant.WS_TOPIC_NOTIFICATION + jobSeekerId,
+                notification);
+
+        log.info("Video call notification sent to userId={} for application={}", jobSeekerId, applicationId);
+    }
 }

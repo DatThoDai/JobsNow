@@ -301,6 +301,10 @@ public class CandidateRAGServiceImpl implements CandidateRAGService {
 
     @SuppressWarnings("unchecked")
     private float[] getEmbedding(String text) {
+        if (text == null) return null;
+        if (text.length() > 12000) {
+            text = text.substring(0, 12000);
+        }
         try {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", EMBEDDING_MODEL);
